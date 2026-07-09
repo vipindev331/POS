@@ -26,15 +26,37 @@ pos_app/             ← Flutter client (Clean Architecture + MVVM/Cubit)
 - GST slabs 0/5/12/18/28; intra-state → CGST+SGST, inter-state → IGST.
 - The tax engine is one spec, ported byte-for-byte between JS and Dart.
 
-## Build plan
+## Status — all 10 parts complete
 
-Delivered in 10 approval-gated parts (see `ARCHITECTURE.md §10`). **Part 1 (this) = architecture +
-folder structure.** Next: Part 2, the backend.
+| Part | Area | State |
+|---|---|---|
+| 1 | Architecture + folder structure | ✅ |
+| 2 | Backend APIs (Express + SQLite + JWT, idempotent checkout, tax engine) | ✅ verified E2E |
+| 3 | Flutter core (DI, router, theme, config, network, tax port) | ✅ |
+| 4 | Drift offline DB (tables, DAOs, native + web) | ✅ |
+| 5 | Billing (cart Cubit, barcode, F2–F12 shortcuts) | ✅ |
+| 6 | Sync engine (outbox, backoff, delta pull, conflict) | ✅ verified E2E |
+| 7 | Printing (ESC/POS thermal + web HTML 80mm) | ✅ |
+| 8 | Auth UI (login, guards, session) | ✅ verified E2E |
+| 9 | Reports + dashboard, products/customers/settings, CSV export | ✅ |
+| 10 | Deployment (Docker, build recipes, docs) | ✅ |
 
-## Getting started (per part)
+See `ARCHITECTURE.md` for the design contract and **`DEPLOYMENT.md`** for shipping.
 
-- **Backend:** `cd backend && npm install --cache <scratchpad>/npm-cache --maxsockets=3 && npm run setup && npm start` (port 4000) — *available from Part 2.*
-- **Flutter:** `cd pos_app && flutter pub get && flutter run -d chrome` — *available from Part 3.*
+## Getting started
+
+- **Backend:** `cd backend && npm install && npm run setup && npm start` (port 4000).
+  Logins: `manager/manager123`, `staff/staff123`. If `~/.npm` gives EACCES, add
+  `--cache <dir> --maxsockets=3` to the install.
+- **Flutter:** `cd pos_app && flutter pub get && dart run build_runner build --delete-conflicting-outputs && flutter run -d chrome`
+  (point at the backend with `--dart-define=API_BASE_URL=http://localhost:4000/api/v1`).
+
+## Testing
+
+- Backend: `cd backend && npm test` (tax engine).
+- Client: `cd pos_app && flutter analyze && flutter test`. Integration tests
+  (`test/*_integration_test.dart`) drive the live backend and auto-skip when it's down;
+  run them with `--dart-define=API_BASE_URL=http://127.0.0.1:4000/api/v1`.
 
 ## Toolchain (verified on this machine)
 

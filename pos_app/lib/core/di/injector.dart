@@ -7,6 +7,7 @@ import '../../data/local/database.dart';
 import '../../features/auth/data/auth_repository.dart';
 import '../../features/auth/presentation/auth_cubit.dart';
 import '../../features/billing/data/sales_repository.dart';
+import '../../features/customers/data/customers_repository.dart';
 import '../../features/printing/data/print_service.dart';
 import '../../features/printing/data/receipt_printer.dart';
 import '../../features/reports/data/reports_api.dart';
@@ -14,6 +15,7 @@ import '../../features/products/data/products_remote_ds.dart';
 import '../../features/products/data/products_repository.dart';
 import '../../features/sync/data/sync_engine.dart';
 import '../../features/sync/data/sync_remote_ds.dart';
+import '../../app/theme_controller.dart';
 import '../config/config_store.dart';
 import '../network/connectivity_service.dart';
 import '../network/dio_client.dart';
@@ -26,6 +28,7 @@ Future<void> registerCore() async {
   final config = createConfigStore();
   await config.init();
   sl.registerSingleton<ConfigStore>(config);
+  sl.registerSingleton<ThemeController>(ThemeController(config));
 
   // Local Drift database (offline source of truth).
   sl.registerSingleton<AppDatabase>(AppDatabase());
@@ -50,6 +53,7 @@ Future<void> registerCore() async {
     ProductsRepository(sl<AppDatabase>(), sl<ProductsRemoteDataSource>(), sl<ConnectivityService>()),
   );
   sl.registerSingleton<SalesRepository>(SalesRepository(sl<AppDatabase>()));
+  sl.registerSingleton<CustomersRepository>(CustomersRepository(sl<AppDatabase>()));
 
   // Sync engine (started from main after DI is ready).
   sl.registerSingleton<SyncRemoteDataSource>(SyncRemoteDataSource(sl<DioClient>()));

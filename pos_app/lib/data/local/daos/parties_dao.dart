@@ -25,6 +25,16 @@ class PartiesDao extends DatabaseAccessor<AppDatabase> with _$PartiesDaoMixin {
   }
 
   Future<void> upsertCustomer(CustomersCompanion c) => into(customers).insertOnConflictUpdate(c);
+
+  /// Partial update of an existing customer by id.
+  Future<void> updateCustomer(String id, CustomersCompanion c) =>
+      (update(customers)..where((t) => t.id.equals(id))).write(c);
+
+  /// Local soft-delete (tombstone) so the row leaves lists immediately.
+  Future<void> softDeleteCustomer(String id, int ts) =>
+      (update(customers)..where((t) => t.id.equals(id))).write(
+        CustomersCompanion(deletedAt: Value(ts), updatedAt: Value(ts), dirty: const Value(true)),
+      );
   Future<void> upsertAllCustomers(List<CustomersCompanion> rows) =>
       batch((b) => b.insertAllOnConflictUpdate(customers, rows));
 

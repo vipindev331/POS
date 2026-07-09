@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../app/theme.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/export/csv.dart';
 import '../../../core/money/tax_engine.dart';
@@ -105,65 +106,312 @@ class _DashboardTab extends StatelessWidget {
       builder: (context, d) {
         final recent = (d['recentBills'] as List).cast<Map<String, dynamic>>();
         final top = (d['topProducts'] as List).cast<Map<String, dynamic>>();
+        final lowStock = d['lowStock'] as int;
+        final outOfStock = d['outOfStock'] as int;
         return ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(20),
           children: [
             Wrap(
-              spacing: 12,
-              runSpacing: 12,
+              spacing: 14,
+              runSpacing: 14,
               children: [
-                _kpi(context, "Today's Sales", formatPaise(d['todaySales'] as int), Icons.today, '${d['todayCount']} bills'),
-                _kpi(context, 'Month Sales', formatPaise(d['monthSales'] as int), Icons.calendar_month, '${d['monthCount']} bills'),
-                _kpi(context, 'Month Profit', formatPaise(d['monthProfit'] as int), Icons.trending_up),
-                _kpi(context, 'Low Stock', '${d['lowStock']}', Icons.warning_amber),
-                _kpi(context, 'Out of Stock', '${d['outOfStock']}', Icons.remove_shopping_cart),
+                _Kpi(
+                  label: "Today's Sales",
+                  value: formatPaise(d['todaySales'] as int),
+                  icon: Icons.today,
+                  sub: '${d['todayCount']} bills generated',
+                  subIcon: Icons.receipt_long,
+                ),
+                _Kpi(
+                  label: 'Month Sales',
+                  value: formatPaise(d['monthSales'] as int),
+                  icon: Icons.calendar_month,
+                  sub: '${d['monthCount']} bills this month',
+                  subIcon: Icons.receipt_long,
+                ),
+                _Kpi(
+                  label: 'Month Profit',
+                  value: formatPaise(d['monthProfit'] as int),
+                  icon: Icons.payments_outlined,
+                  sub: 'On track with goal',
+                  subIcon: Icons.trending_up,
+                ),
+                _Kpi(
+                  label: 'Low Stock',
+                  value: '$lowStock',
+                  icon: Icons.warning_amber,
+                  sub: lowStock == 0 ? 'No alerts pending' : 'Needs attention',
+                  subIcon: lowStock == 0 ? Icons.check_circle_outline : Icons.error_outline,
+                  badge: lowStock == 0 ? 'HEALTHY' : 'ALERT',
+                  badgeColor: lowStock == 0 ? AppTheme.accent : const Color(0xFFF87171),
+                ),
+                _Kpi(
+                  label: 'Out of Stock',
+                  value: '$outOfStock',
+                  icon: Icons.remove_shopping_cart_outlined,
+                  sub: outOfStock == 0 ? 'All items available' : 'Restock needed',
+                  subIcon: outOfStock == 0 ? Icons.verified_outlined : Icons.error_outline,
+                  badge: outOfStock == 0 ? 'GREAT' : 'LOW',
+                  badgeColor: outOfStock == 0 ? AppTheme.accent : const Color(0xFFF87171),
+                ),
               ],
             ),
-            const SizedBox(height: 24),
-            Text('Recent bills', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ...recent.map((b) => ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.receipt_long),
-                  title: Text(b['invoice_no']?.toString() ?? b['id'].toString()),
-                  trailing: Text(formatPaise(b['grand_total'] as int)),
-                )),
-            const SizedBox(height: 16),
-            Text('Top selling products', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            ...top.map((p) => ListTile(
-                  dense: true,
-                  leading: const Icon(Icons.local_fire_department),
-                  title: Text(p['name']?.toString() ?? '-'),
-                  subtitle: Text('Qty ${p['qty']}'),
-                  trailing: Text(formatPaise((p['revenue'] ?? 0) as int)),
-                )),
+            const SizedBox(height: 20),
+            LayoutBuilder(
+              builder: (context, c) {
+                final twoCol = c.maxWidth >= 900;
+                final bills = _Panel(
+                  title: 'Recent Bills',
+                  child: Column(
+                    children: [
+                      for (final b in recent)
+                        _BillRow(
+                          id: b['invoice_no']?.toString() ?? b['id'].toString(),
+                          amount: formatPaise(b['grand_total'] as int),
+                        ),
+                      if (recent.isEmpty) const _EmptyRow('No bills yet'),
+                    ],
+                  ),
+                );
+                final products = _Panel(
+                  title: 'Top Selling Products',
+                  child: Column(
+                    children: [
+                      for (final p in top)
+                        _ProductRow(
+                          name: p['name']?.toString() ?? '-',
+                          qty: '${p['qty']}',
+                          revenue: formatPaise((p['revenue'] ?? 0) as int),
+                        ),
+                      if (top.isEmpty) const _EmptyRow('No sales yet'),
+                    ],
+                  ),
+                );
+                if (!twoCol) {
+                  return Column(children: [bills, const SizedBox(height: 16), products]);
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 3, child: bills),
+                    const SizedBox(width: 16),
+                    Expanded(flex: 2, child: products),
+                  ],
+                );
+              },
+            ),
           ],
         );
       },
     );
   }
+}
 
-  Widget _kpi(BuildContext context, String label, String value, IconData icon, [String? sub]) {
+/// KPI stat tile matching the Management Suite dashboard style: a tinted icon
+/// square, an optional status badge, an uppercase label, a large value, and a
+/// captioned sub-note.
+class _Kpi extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final String? sub;
+  final IconData? subIcon;
+  final String? badge;
+  final Color? badgeColor;
+  const _Kpi({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.sub,
+    this.subIcon,
+    this.badge,
+    this.badgeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return SizedBox(
-      width: 200,
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
+    final tint = badgeColor ?? scheme.primary;
+    return Container(
+      width: 210,
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(children: [Icon(icon, size: 18, color: scheme.primary), const SizedBox(width: 6), Expanded(child: Text(label))]),
-              const SizedBox(height: 8),
-              Text(value, style: Theme.of(context).textTheme.headlineSmall),
-              if (sub != null) Text(sub, style: TextStyle(color: scheme.outline, fontSize: 12)),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: tint.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: tint, size: 22),
+              ),
+              const Spacer(),
+              if (badge != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: tint.withValues(alpha: 0.14),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badge!,
+                    style: TextStyle(color: tint, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                  ),
+                ),
             ],
           ),
-        ),
+          const SizedBox(height: 16),
+          Text(
+            label.toUpperCase(),
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            style: TextStyle(color: scheme.onSurface, fontSize: 26, fontWeight: FontWeight.w800),
+          ),
+          if (sub != null) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                if (subIcon != null) ...[
+                  Icon(subIcon, size: 14, color: scheme.onSurfaceVariant),
+                  const SizedBox(width: 5),
+                ],
+                Flexible(
+                  child: Text(
+                    sub!,
+                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
       ),
     );
   }
+}
+
+/// Bordered content panel with a header row, used for the dashboard's
+/// Recent Bills and Top Selling Products sections.
+class _Panel extends StatelessWidget {
+  final String title;
+  final Widget child;
+  const _Panel({required this.title, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
+            child: Text(title,
+                style: TextStyle(
+                    color: scheme.onSurface, fontSize: 17, fontWeight: FontWeight.w700)),
+          ),
+          const Divider(height: 1),
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: child),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _BillRow extends StatelessWidget {
+  final String id;
+  final String amount;
+  const _BillRow({required this.id, required this.amount});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: CircleAvatar(
+        radius: 16,
+        backgroundColor: scheme.surfaceContainerHighest,
+        child: Icon(Icons.receipt_long, size: 16, color: scheme.onSurfaceVariant),
+      ),
+      title: Text(id, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: AppTheme.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Text('COMPLETED',
+                style: TextStyle(color: AppTheme.accent, fontSize: 10, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(width: 14),
+          Text(amount, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProductRow extends StatelessWidget {
+  final String name;
+  final String qty;
+  final String revenue;
+  const _ProductRow({required this.name, required this.qty, required this.revenue});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ListTile(
+      leading: Container(
+        width: 15,
+        height: 15,
+        decoration: BoxDecoration(color: const Color.fromARGB(255, 193, 206, 217), borderRadius: BorderRadius.circular(83)),
+      ),
+      title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+      subtitle: Text('Qty: $qty units',
+          style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+      trailing: Text(revenue,
+          style: const TextStyle(color: AppTheme.accent, fontWeight: FontWeight.w700, fontSize: 14)),
+    );
+  }
+}
+
+class _EmptyRow extends StatelessWidget {
+  final String text;
+  const _EmptyRow(this.text);
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Center(
+            child: Text(text,
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant))),
+      );
 }
 
 // ── Simple table tabs ───────────────────────────────────────────────────────

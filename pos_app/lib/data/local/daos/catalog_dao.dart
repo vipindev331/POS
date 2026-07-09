@@ -38,6 +38,16 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
   Future<void> upsertProduct(ProductsCompanion c) =>
       into(products).insertOnConflictUpdate(c);
 
+  /// Partial update of an existing product by id.
+  Future<void> updateProduct(String id, ProductsCompanion c) =>
+      (update(products)..where((t) => t.id.equals(id))).write(c);
+
+  /// Local soft-delete (tombstone) so the row drops out of lists immediately.
+  Future<void> softDeleteProduct(String id, int ts) =>
+      (update(products)..where((t) => t.id.equals(id))).write(
+        ProductsCompanion(deletedAt: Value(ts), updatedAt: Value(ts), dirty: const Value(true)),
+      );
+
   Future<void> upsertAllProducts(List<ProductsCompanion> rows) async {
     await batch((b) => b.insertAllOnConflictUpdate(products, rows));
   }

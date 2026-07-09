@@ -5,6 +5,7 @@ import '../core/di/injector.dart';
 import '../features/auth/presentation/auth_cubit.dart';
 import 'router.dart';
 import 'theme.dart';
+import 'theme_controller.dart';
 
 class PosApp extends StatelessWidget {
   const PosApp({super.key});
@@ -15,13 +16,16 @@ class PosApp extends StatelessWidget {
     // shell logout) while the router reads the same instance for its guard.
     return BlocProvider<AuthCubit>.value(
       value: sl<AuthCubit>(),
-      child: MaterialApp.router(
-        title: 'Retail POS',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        themeMode: ThemeMode.system,
-        routerConfig: appRouter,
+      child: ValueListenableBuilder<ThemeMode>(
+        valueListenable: sl<ThemeController>(),
+        builder: (context, mode, _) => MaterialApp.router(
+          title: 'Retail POS',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: mode,
+          routerConfig: appRouter,
+        ),
       ),
     );
   }

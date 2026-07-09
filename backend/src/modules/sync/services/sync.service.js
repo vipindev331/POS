@@ -67,10 +67,14 @@ function applyOp(op, user) {
       return op.payload.id && ProductsService_exists(op.payload.id)
         ? ProductsService.update(op.payload.id, op.payload)
         : ProductsService.create(op.payload);
+    case 'product:delete':
+      return ProductsService.remove(op.payload.id);
     case 'customer:upsert':
       return op.payload.id && CustomersService_exists(op.payload.id)
         ? CustomersService.update(op.payload.id, op.payload)
         : CustomersService.create(op.payload);
+    case 'customer:delete':
+      return CustomersService.remove(op.payload.id);
     default:
       throw badRequest(`Unsupported sync op: ${op.entity}:${op.type}`);
   }

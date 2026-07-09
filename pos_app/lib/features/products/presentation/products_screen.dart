@@ -1,10 +1,12 @@
 // Product catalog viewer. Reads the local Drift cache reactively (works
 // offline); a refresh pulls the latest from the backend.
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
 import '../../../data/local/database.dart';
+import '../../auth/presentation/auth_cubit.dart';
 import '../data/products_repository.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -37,6 +39,61 @@ class _ProductsScreenState extends State<ProductsScreen> {
     super.dispose();
   }
 
+  bool get _isManager => context.read<AuthCubit>().state.user?.isManager ?? false;
+
+  Future<void> _addProduct() async {
+    final added = await showDialog<bool>(
+      context: context,
+      builder: (_) => const _ProductFormDialog(),
+    );
+    if (added == true && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Product added')));
+    }
+  }
+
+  Future<void> _editProduct(Product p) async {
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ProductFormDialog(existing: p),
+    );
+    if (saved == true && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Product updated')));
+    }
+  }
+
+  Future<void> _deleteProduct(Product p) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete product'),
+        content: Text('Delete "${p.name}"? This removes it from the catalog.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+    try {
+      await sl<ProductsRepository>().deleteProduct(p.id);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Deleted ${p.name}')));
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Could not delete product')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -51,6 +108,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
             tooltip: 'Sync from server',
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _addProduct,
+        icon: const Icon(Icons.add),
+        label: const Text('Add product'),
       ),
       body: Column(
         children: [
@@ -88,15 +150,49 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     final p = items[i];
                     final low = p.stock <= p.reorderLevel;
                     return ListTile(
+                      onTap: _isManager ? () => _editProduct(p) : null,
                       title: Text(p.name),
                       subtitle: Text('${p.barcode ?? p.sku ?? ''}  ·  GST ${p.gstRate}%'),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(formatPaise(p.sellingPrice), style: const TextStyle(fontWeight: FontWeight.bold)),
-                          Text('Stock ${p.stock}',
-                              style: TextStyle(fontSize: 12, color: low ? Colors.orange : null)),
+                          Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(formatPaise(p.sellingPrice),
+                                  style: const TextStyle(fontWeight: FontWeight.bold)),
+                              Text('Stock ${p.stock}',
+                                  style: TextStyle(fontSize: 12, color: low ? Colors.orange : null)),
+                            ],
+                          ),
+                          if (_isManager)
+                            PopupMenuButton<String>(
+                              onSelected: (v) {
+                                if (v == 'edit') _editProduct(p);
+                                if (v == 'delete') _deleteProduct(p);
+                              },
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.edit),
+                                    title: Text('Edit'),
+                                  ),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(Icons.delete_outline),
+                                    title: Text('Delete'),
+                                  ),
+                                ),
+                              ],
+                            ),
                         ],
                       ),
                     );
@@ -109,4 +205,188 @@ class _ProductsScreenState extends State<ProductsScreen> {
       ),
     );
   }
+}
+
+/// Add a new product, or edit [existing] when provided. Name is required; money
+/// fields are entered in rupees and stored as paise. Pops `true` on success.
+class _ProductFormDialog extends StatefulWidget {
+  final Product? existing;
+  const _ProductFormDialog({this.existing});
+
+  @override
+  State<_ProductFormDialog> createState() => _ProductFormDialogState();
+}
+
+class _ProductFormDialogState extends State<_ProductFormDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _name = TextEditingController();
+  final _sku = TextEditingController();
+  final _barcode = TextEditingController();
+  final _hsn = TextEditingController();
+  final _gst = TextEditingController(text: '0');
+  final _selling = TextEditingController();
+  final _mrp = TextEditingController();
+  final _purchase = TextEditingController();
+  final _stock = TextEditingController(text: '0');
+  final _reorder = TextEditingController(text: '0');
+  bool _submitting = false;
+  String? _error;
+
+  bool get _isEdit => widget.existing != null;
+
+  // Paise -> a clean rupees string (no ".00" for whole rupees).
+  static String _rupees(int paise) {
+    final r = paise / 100;
+    return r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toStringAsFixed(2);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final p = widget.existing;
+    if (p != null) {
+      _name.text = p.name;
+      _sku.text = p.sku ?? '';
+      _barcode.text = p.barcode ?? '';
+      _hsn.text = p.hsn ?? '';
+      _gst.text = '${p.gstRate}';
+      _selling.text = _rupees(p.sellingPrice);
+      _mrp.text = _rupees(p.mrp);
+      _purchase.text = _rupees(p.purchasePrice);
+      _stock.text = '${p.stock}';
+      _reorder.text = '${p.reorderLevel}';
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_name, _sku, _barcode, _hsn, _gst, _selling, _mrp, _purchase, _stock, _reorder]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  // Rupees text -> paise. Empty/invalid becomes 0.
+  int _paise(TextEditingController c) => ((double.tryParse(c.text.trim()) ?? 0) * 100).round();
+  int _int(TextEditingController c) => int.tryParse(c.text.trim()) ?? 0;
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      String? t(TextEditingController c) => c.text.trim().isEmpty ? null : c.text.trim();
+      final repo = sl<ProductsRepository>();
+      if (_isEdit) {
+        await repo.updateProduct(
+          widget.existing!.id,
+          name: _name.text.trim(),
+          sku: t(_sku),
+          barcode: t(_barcode),
+          hsn: t(_hsn),
+          gstRate: _int(_gst),
+          purchasePrice: _paise(_purchase),
+          sellingPrice: _paise(_selling),
+          mrp: _paise(_mrp),
+          stock: _int(_stock),
+          reorderLevel: _int(_reorder),
+        );
+      } else {
+        await repo.addProduct(
+          name: _name.text.trim(),
+          sku: t(_sku),
+          barcode: t(_barcode),
+          hsn: t(_hsn),
+          gstRate: _int(_gst),
+          purchasePrice: _paise(_purchase),
+          sellingPrice: _paise(_selling),
+          mrp: _paise(_mrp),
+          stock: _int(_stock),
+          reorderLevel: _int(_reorder),
+        );
+      }
+      if (mounted) Navigator.of(context).pop(true);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not save product');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(_isEdit ? 'Edit product' : 'Add product'),
+      content: SizedBox(
+        width: 420,
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: _name,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: const InputDecoration(labelText: 'Name'),
+                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                ),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _field(_sku, 'SKU (optional)')),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(_barcode, 'Barcode (optional)')),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _field(_hsn, 'HSN (optional)')),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(_gst, 'GST %', number: true)),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _field(_selling, 'Selling price ₹', number: true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(_mrp, 'MRP ₹', number: true)),
+                ]),
+                const SizedBox(height: 14),
+                Row(children: [
+                  Expanded(child: _field(_purchase, 'Purchase price ₹', number: true)),
+                  const SizedBox(width: 12),
+                  Expanded(child: _field(_stock, 'Opening stock', number: true)),
+                ]),
+                const SizedBox(height: 14),
+                _field(_reorder, 'Reorder level', number: true),
+                if (_error != null) ...[
+                  const SizedBox(height: 12),
+                  Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _submitting ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _submitting ? null : _submit,
+          child: _submitting
+              ? const SizedBox(
+                  width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+              : Text(_isEdit ? 'Save' : 'Add'),
+        ),
+      ],
+    );
+  }
+
+  Widget _field(TextEditingController c, String label, {bool number = false}) => TextFormField(
+        controller: c,
+        keyboardType: number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+        decoration: InputDecoration(labelText: label),
+      );
 }

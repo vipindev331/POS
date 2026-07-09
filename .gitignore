@@ -1,0 +1,35 @@
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+*.iml
+
+# ── Node backend ──
+node_modules/
+npm-debug.log*
+.env
+.env.*
+!.env.example
+backend/data/*.sqlite
+backend/data/*.sqlite-*
+backend/data/*.db
+
+# ── Flutter / Dart ──
+pos_app/.dart_tool/
+pos_app/.flutter-plugins
+pos_app/.flutter-plugins-dependencies
+pos_app/build/
+pos_app/.pub-cache/
+pos_app/ios/Pods/
+pos_app/ios/.symlinks/
+pos_app/android/.gradle/
+pos_app/android/local.properties
+pos_app/macos/Pods/
+pos_app/windows/flutter/ephemeral/
+pos_app/linux/flutter/ephemeral/
+
+# Generated code — regenerate via build_runner, do not commit.
+pos_app/**/*.g.dart
+pos_app/**/*.freezed.dart

@@ -2,6 +2,10 @@ import 'dart:convert';
 
 import 'package:equatable/equatable.dart';
 
+/// Permission key: allows a staff user to add, edit, and delete products.
+/// Managers have it implicitly (see [AuthUser.can]).
+const String kPermManageProducts = 'manage_products';
+
 class AuthUser extends Equatable {
   final String id;
   final String username;
@@ -18,6 +22,9 @@ class AuthUser extends Equatable {
   });
 
   bool get isManager => role == 'manager';
+
+  /// Managers can do everything; staff only what their permissions grant.
+  bool can(String permission) => isManager || permissions.contains(permission);
 
   factory AuthUser.fromJson(Map<String, dynamic> j) => AuthUser(
         id: j['id'] as String,

@@ -72,8 +72,13 @@ class _BillingViewState extends State<_BillingView> {
   }
 
   Future<void> _submitBarcode(String value) async {
-    await _cubit.addByBarcode(value);
+    final found = await _cubit.addByBarcode(value);
     _barcodeController.clear();
+    if (!found && value.trim().isNotEmpty) {
+      // Not an exact barcode — fall back to a name/SKU/barcode search.
+      await _openSearch(initialTerm: value.trim());
+      return;
+    }
     _focusBarcode(); // refocus after every scan
   }
 
@@ -140,10 +145,13 @@ class _BillingViewState extends State<_BillingView> {
   void _notify(String msg) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
 
-  Future<void> _openSearch() async {
+  Future<void> _openSearch({String initialTerm = ''}) async {
     final product = await showDialog<Product>(
       context: context,
-      builder: (_) => ProductSearchDialog(repository: sl<ProductsRepository>()),
+      builder: (_) => ProductSearchDialog(
+        repository: sl<ProductsRepository>(),
+        initialTerm: initialTerm,
+      ),
     );
     if (product != null) _cubit.addProduct(product);
     _focusBarcode();
@@ -439,11 +447,42 @@ class _TotalsPanel extends StatelessWidget {
                 icon: const Icon(Icons.check_circle),
                 label: Text(state.isSaving ? 'Saving…' : 'Checkout  (F12)'),
               ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: (state.isEmpty || state.isSaving)
+                    ? null
+                    : () => _cancelBill(context),
+                icon: const Icon(Icons.cancel_outlined),
+                label: const Text('Cancel bill  (Esc)'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.error,
+                ),
+              ),
             ],
           ),
         );
       },
     );
+  }
+
+  Future<void> _cancelBill(BuildContext context) async {
+    final cubit = context.read<BillingCubit>();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancel bill'),
+        content: const Text('Remove all items and start over? This cannot be undone.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep bill')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Cancel bill'),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) cubit.clearCart();
   }
 
   Widget _row(String label, String value, {bool big = false}) {

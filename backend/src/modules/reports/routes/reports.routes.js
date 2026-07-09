@@ -19,4 +19,9 @@ router.get('/gst', asyncHandler((req, res) => ok(res, ReportsService.gstReport(r
 router.get('/profit', requireRole('manager'), asyncHandler((req, res) => ok(res, ReportsService.profitReport(range(req)))));
 router.get('/inventory', asyncHandler((_req, res) => ok(res, ReportsService.inventoryReport())));
 
+// Sold-products listing + per-product drill-down (available to all staff).
+router.get('/sold', asyncHandler((req, res) => ok(res, ReportsService.soldProducts(range(req)))));
+router.get('/sold/:productId', asyncHandler((req, res) =>
+  ok(res, ReportsService.soldProductDetail({ ...range(req), productId: req.params.productId }))));
+
 export default router;

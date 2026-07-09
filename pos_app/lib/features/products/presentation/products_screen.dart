@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
 import '../../../data/local/database.dart';
+import '../../auth/domain/auth_user.dart';
 import '../../auth/presentation/auth_cubit.dart';
 import '../data/products_repository.dart';
 
@@ -39,7 +40,9 @@ class _ProductsScreenState extends State<ProductsScreen> {
     super.dispose();
   }
 
-  bool get _isManager => context.read<AuthCubit>().state.user?.isManager ?? false;
+  // Managers, or staff granted the manage-products permission, can edit/delete.
+  bool get _canManage =>
+      context.read<AuthCubit>().state.user?.can(kPermManageProducts) ?? false;
 
   Future<void> _addProduct() async {
     final added = await showDialog<bool>(
@@ -150,7 +153,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     final p = items[i];
                     final low = p.stock <= p.reorderLevel;
                     return ListTile(
-                      onTap: _isManager ? () => _editProduct(p) : null,
+                      onTap: _canManage ? () => _editProduct(p) : null,
                       title: Text(p.name),
                       subtitle: Text('${p.barcode ?? p.sku ?? ''}  ·  GST ${p.gstRate}%'),
                       trailing: Row(
@@ -166,7 +169,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                                   style: TextStyle(fontSize: 12, color: low ? Colors.orange : null)),
                             ],
                           ),
-                          if (_isManager)
+                          if (_canManage)
                             PopupMenuButton<String>(
                               onSelected: (v) {
                                 if (v == 'edit') _editProduct(p);
@@ -223,12 +226,12 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
   final _sku = TextEditingController();
   final _barcode = TextEditingController();
   final _hsn = TextEditingController();
-  final _gst = TextEditingController(text: '0');
   final _selling = TextEditingController();
   final _mrp = TextEditingController();
   final _purchase = TextEditingController();
   final _stock = TextEditingController(text: '0');
   final _reorder = TextEditingController(text: '0');
+  int _gstRate = 0; // must be one of kGstSlabs (0/5/12/18/28)
   bool _submitting = false;
   String? _error;
 
@@ -249,7 +252,8 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       _sku.text = p.sku ?? '';
       _barcode.text = p.barcode ?? '';
       _hsn.text = p.hsn ?? '';
-      _gst.text = '${p.gstRate}';
+      // Guard against legacy/invalid slabs so the dropdown has a valid value.
+      _gstRate = kGstSlabs.contains(p.gstRate) ? p.gstRate : 0;
       _selling.text = _rupees(p.sellingPrice);
       _mrp.text = _rupees(p.mrp);
       _purchase.text = _rupees(p.purchasePrice);
@@ -260,7 +264,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
 
   @override
   void dispose() {
-    for (final c in [_name, _sku, _barcode, _hsn, _gst, _selling, _mrp, _purchase, _stock, _reorder]) {
+    for (final c in [_name, _sku, _barcode, _hsn, _selling, _mrp, _purchase, _stock, _reorder]) {
       c.dispose();
     }
     super.dispose();
@@ -286,7 +290,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           sku: t(_sku),
           barcode: t(_barcode),
           hsn: t(_hsn),
-          gstRate: _int(_gst),
+          gstRate: _gstRate,
           purchasePrice: _paise(_purchase),
           sellingPrice: _paise(_selling),
           mrp: _paise(_mrp),
@@ -299,7 +303,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           sku: t(_sku),
           barcode: t(_barcode),
           hsn: t(_hsn),
-          gstRate: _int(_gst),
+          gstRate: _gstRate,
           purchasePrice: _paise(_purchase),
           sellingPrice: _paise(_selling),
           mrp: _paise(_mrp),
@@ -330,35 +334,74 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                 TextFormField(
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(labelText: 'Name'),
+                  decoration: const InputDecoration(
+                    labelText: 'Name',
+                    helperText: 'Product name shown at billing and on the receipt',
+                  ),
                   validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                 ),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: _field(_sku, 'SKU (optional)')),
+                const SizedBox(height: 18),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _field(_sku, 'SKU (optional)',
+                        helper: 'Your own product code for tracking stock (e.g. MILK-1L)'),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _field(_barcode, 'Barcode (optional)')),
+                  Expanded(
+                    child: _field(_barcode, 'Barcode (optional)',
+                        helper: 'Scannable number on the pack (EAN/UPC)'),
+                  ),
                 ]),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: _field(_hsn, 'HSN (optional)')),
+                const SizedBox(height: 18),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _field(_hsn, 'HSN (optional)',
+                        helper: 'Govt. GST classification code for tax invoices'),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _field(_gst, 'GST %', number: true)),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: _gstRate,
+                      decoration: const InputDecoration(
+                        labelText: 'GST %',
+                        helperText: 'Tax slab applied on this item',
+                        helperMaxLines: 2,
+                      ),
+                      items: [
+                        for (final r in kGstSlabs)
+                          DropdownMenuItem(value: r, child: Text('$r%')),
+                      ],
+                      onChanged: _submitting ? null : (v) => setState(() => _gstRate = v ?? 0),
+                    ),
+                  ),
                 ]),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: _field(_selling, 'Selling price ₹', number: true)),
+                const SizedBox(height: 18),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _field(_selling, 'Selling price ₹', number: true,
+                        helper: 'Price charged to the customer'),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _field(_mrp, 'MRP ₹', number: true)),
+                  Expanded(
+                    child: _field(_mrp, 'MRP ₹', number: true,
+                        helper: 'Maximum retail price printed on the pack'),
+                  ),
                 ]),
-                const SizedBox(height: 14),
-                Row(children: [
-                  Expanded(child: _field(_purchase, 'Purchase price ₹', number: true)),
+                const SizedBox(height: 18),
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(
+                    child: _field(_purchase, 'Purchase price ₹', number: true,
+                        helper: 'Your cost — used to calculate profit'),
+                  ),
                   const SizedBox(width: 12),
-                  Expanded(child: _field(_stock, 'Opening stock', number: true)),
+                  Expanded(
+                    child: _field(_stock, 'Opening stock', number: true,
+                        helper: 'Quantity currently in hand'),
+                  ),
                 ]),
-                const SizedBox(height: 14),
-                _field(_reorder, 'Reorder level', number: true),
+                const SizedBox(height: 18),
+                _field(_reorder, 'Reorder level', number: true,
+                    helper: 'Low-stock alert triggers at or below this quantity'),
                 if (_error != null) ...[
                   const SizedBox(height: 12),
                   Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
@@ -384,9 +427,14 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     );
   }
 
-  Widget _field(TextEditingController c, String label, {bool number = false}) => TextFormField(
+  Widget _field(TextEditingController c, String label, {bool number = false, String? helper}) =>
+      TextFormField(
         controller: c,
         keyboardType: number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(
+          labelText: label,
+          helperText: helper,
+          helperMaxLines: 2,
+        ),
       );
 }

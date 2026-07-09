@@ -27,10 +27,12 @@ class CatalogDao extends DatabaseAccessor<AppDatabase> with _$CatalogDaoMixin {
 
   Future<List<Product>> search(String term, {int limit = 25}) {
     final like = '%$term%';
+    // Partial match on name, SKU, and barcode (LIKE). Exact barcode scanning
+    // uses byBarcode() on the billing hot path; this is the manual search.
     return (select(products)
           ..where((p) =>
               p.deletedAt.isNull() &
-              (p.name.like(like) | p.sku.like(like) | p.barcode.equals(term)))
+              (p.name.like(like) | p.sku.like(like) | p.barcode.like(like)))
           ..limit(limit))
         .get();
   }

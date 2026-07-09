@@ -227,6 +227,7 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
   final _fullName = TextEditingController();
   final _password = TextEditingController();
   String _role = 'staff';
+  bool _canManageProducts = false;
   bool _submitting = false;
   String? _error;
 
@@ -240,8 +241,14 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
       _username.text = u.username;
       _fullName.text = u.fullName;
       _role = u.role;
+      _canManageProducts = u.permissions.contains(kPermManageProducts);
     }
   }
+
+  // Assemble the permission list to send to the backend.
+  List<String> get _permissions => [
+        if (_canManageProducts) kPermManageProducts,
+      ];
 
   @override
   void dispose() {
@@ -264,6 +271,7 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
           widget.existing!.id,
           fullName: _fullName.text.trim(),
           role: _role,
+          permissions: _permissions,
         );
       } else {
         await auth.createUser(
@@ -271,6 +279,7 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
           password: _password.text,
           fullName: _fullName.text.trim(),
           role: _role,
+          permissions: _permissions,
         );
       }
       if (mounted) Navigator.of(context).pop(true);
@@ -332,6 +341,20 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
                 ],
                 onChanged: _submitting ? null : (v) => setState(() => _role = v ?? 'staff'),
               ),
+              // Permissions only apply to staff — managers can do everything.
+              if (_role == 'staff') ...[
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  value: _canManageProducts,
+                  onChanged: _submitting
+                      ? null
+                      : (v) => setState(() => _canManageProducts = v ?? false),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text('Can edit & delete products'),
+                  subtitle: const Text('Allow this staff member to change or remove product details'),
+                ),
+              ],
               if (_error != null) ...[
                 const SizedBox(height: 12),
                 Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),

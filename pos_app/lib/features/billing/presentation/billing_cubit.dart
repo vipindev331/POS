@@ -37,22 +37,22 @@ class BillingCubit extends Cubit<BillingState> {
   }
 
   /// Barcode scan / manual barcode entry. Increments if present, else looks up.
-  Future<void> addByBarcode(String barcode) async {
+  /// Returns true if a product was found/added; false if nothing matched (so
+  /// the caller can fall back to a name search).
+  Future<bool> addByBarcode(String barcode) async {
     final code = barcode.trim();
-    if (code.isEmpty) return;
+    if (code.isEmpty) return false;
     final existing = state.lines.indexWhere((l) => l.barcode == code);
     if (existing >= 0) {
       final lines = [...state.lines];
       lines[existing] = lines[existing].copyWith(qty: lines[existing].qty + 1);
       emit(state.copyWith(lines: lines, clearNotice: true));
-      return;
+      return true;
     }
     final product = await _products.byBarcode(code);
-    if (product == null) {
-      emit(state.copyWith(notice: 'No product for "$code"'));
-      return;
-    }
+    if (product == null) return false;
     addProduct(product);
+    return true;
   }
 
   void setQty(int index, int qty) {

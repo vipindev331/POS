@@ -99,4 +99,34 @@ export const ReportsService = {
        FROM products WHERE deleted_at IS NULL ORDER BY name`,
     ).all();
   },
+
+  // Sold products aggregated over a date range (available to all staff — no cost/
+  // profit exposed). One row per product with total qty, revenue, and bill count.
+  soldProducts({ from, to }) {
+    return getDb().prepare(
+      `SELECT bi.product_id, bi.name, p.sku,
+              SUM(bi.qty) qty,
+              COALESCE(SUM(bi.line_total),0) revenue,
+              COUNT(DISTINCT bi.bill_id) bills,
+              MAX(b.created_at) lastSoldAt
+       FROM bill_items bi
+       JOIN bills b ON b.id = bi.bill_id
+       LEFT JOIN products p ON p.id = bi.product_id
+       WHERE b.status='completed' AND b.deleted_at IS NULL AND b.created_at BETWEEN ? AND ?
+       GROUP BY bi.product_id ORDER BY qty DESC`,
+    ).all(from, to);
+  },
+
+  // Individual sale lines for one product in a date range (drill-down view).
+  soldProductDetail({ productId, from, to }) {
+    return getDb().prepare(
+      `SELECT b.id billId, b.invoice_no, b.created_at,
+              bi.qty, bi.unit_price, bi.line_total
+       FROM bill_items bi
+       JOIN bills b ON b.id = bi.bill_id
+       WHERE bi.product_id = ? AND b.status='completed' AND b.deleted_at IS NULL
+             AND b.created_at BETWEEN ? AND ?
+       ORDER BY b.created_at DESC`,
+    ).all(productId, from, to);
+  },
 };

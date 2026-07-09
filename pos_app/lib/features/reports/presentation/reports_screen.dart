@@ -9,13 +9,24 @@ import '../../../core/export/csv.dart';
 import '../../../core/money/tax_engine.dart';
 import '../../auth/presentation/auth_cubit.dart';
 import '../data/reports_api.dart';
+import 'widgets/report_date_bar.dart';
 
-class ReportsScreen extends StatelessWidget {
+class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
+
+  @override
+  State<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  // Shared date range for the tabular tabs. Defaults to today.
+  DateTimeRange _range = todayRange();
 
   @override
   Widget build(BuildContext context) {
     final isManager = context.read<AuthCubit>().state.user?.isManager ?? false;
+    final from = _range.start;
+    final to = rangeTo(_range);
     final tabs = <Tab>[
       const Tab(text: 'Dashboard'),
       const Tab(text: 'Sales'),
@@ -30,13 +41,22 @@ class ReportsScreen extends StatelessWidget {
           title: const Text('Reports'),
           bottom: TabBar(isScrollable: true, tabs: tabs),
         ),
-        body: TabBarView(
+        body: Column(
           children: [
-            const _DashboardTab(),
-            const _SalesTab(),
-            const _GstTab(),
-            if (isManager) const _ProfitTab(),
-            const _InventoryTab(),
+            // The date filter applies to Sales / GST / Profit (Dashboard shows
+            // today+month KPIs; Inventory is a current snapshot).
+            ReportDateBar(range: _range, onChanged: (r) => setState(() => _range = r)),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  const _DashboardTab(),
+                  _SalesTab(from: from, to: to),
+                  _GstTab(from: from, to: to),
+                  if (isManager) _ProfitTab(from: from, to: to),
+                  const _InventoryTab(),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -416,11 +436,11 @@ class _EmptyRow extends StatelessWidget {
 
 // ── Simple table tabs ───────────────────────────────────────────────────────
 class _SalesTab extends StatelessWidget {
-  const _SalesTab();
+  final DateTime from;
+  final DateTime to;
+  const _SalesTab({required this.from, required this.to});
   @override
   Widget build(BuildContext context) {
-    final to = DateTime.now();
-    final from = to.subtract(const Duration(days: 30));
     return _Loader<List<Map<String, dynamic>>>(
       future: _api.salesByDay(from, to),
       builder: (context, rows) => _TableView(
@@ -434,11 +454,11 @@ class _SalesTab extends StatelessWidget {
 }
 
 class _GstTab extends StatelessWidget {
-  const _GstTab();
+  final DateTime from;
+  final DateTime to;
+  const _GstTab({required this.from, required this.to});
   @override
   Widget build(BuildContext context) {
-    final to = DateTime.now();
-    final from = to.subtract(const Duration(days: 30));
     return _Loader<List<Map<String, dynamic>>>(
       future: _api.gst(from, to),
       builder: (context, rows) => _TableView(
@@ -462,11 +482,11 @@ class _GstTab extends StatelessWidget {
 }
 
 class _ProfitTab extends StatelessWidget {
-  const _ProfitTab();
+  final DateTime from;
+  final DateTime to;
+  const _ProfitTab({required this.from, required this.to});
   @override
   Widget build(BuildContext context) {
-    final to = DateTime.now();
-    final from = to.subtract(const Duration(days: 30));
     return _Loader<List<Map<String, dynamic>>>(
       future: _api.profit(from, to),
       builder: (context, rows) => _TableView(

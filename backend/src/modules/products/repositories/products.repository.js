@@ -45,7 +45,7 @@ export const ProductsRepository = {
         `UPDATE products SET sku=@sku, barcode=@barcode, name=@name, category_id=@category_id,
            brand_id=@brand_id, unit_id=@unit_id, hsn=@hsn, gst_rate=@gst_rate,
            purchase_price=@purchase_price, selling_price=@selling_price, mrp=@mrp,
-           reorder_level=@reorder_level, batch_no=@batch_no, expiry_at=@expiry_at,
+           stock=@stock, reorder_level=@reorder_level, batch_no=@batch_no, expiry_at=@expiry_at,
            image_url=@image_url, active=@active, updated_at=@updated_at
          WHERE id=@id AND deleted_at IS NULL`,
       )

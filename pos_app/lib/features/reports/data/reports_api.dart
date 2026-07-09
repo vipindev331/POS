@@ -36,4 +36,18 @@ class ReportsApi {
     final res = await _client.dio.get('/reports/inventory');
     return (res.data['data'] as List).cast<Map<String, dynamic>>();
   }
+
+  /// Sold products aggregated over a date range (product, qty, revenue, bills).
+  Future<List<Map<String, dynamic>>> soldProducts(DateTime from, DateTime to) async {
+    final res = await _client.dio.get('/reports/sold', queryParameters: _range(from, to));
+    return (res.data['data'] as List).cast<Map<String, dynamic>>();
+  }
+
+  /// Individual sale lines for one product in a date range.
+  Future<List<Map<String, dynamic>>> soldProductDetail(
+      String productId, DateTime from, DateTime to) async {
+    final res = await _client.dio
+        .get('/reports/sold/$productId', queryParameters: _range(from, to));
+    return (res.data['data'] as List).cast<Map<String, dynamic>>();
+  }
 }

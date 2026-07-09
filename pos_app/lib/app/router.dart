@@ -15,6 +15,7 @@ import '../features/billing/presentation/billing_screen.dart';
 import '../features/customers/presentation/customers_screen.dart';
 import '../features/products/presentation/products_screen.dart';
 import '../features/reports/presentation/reports_screen.dart';
+import '../features/reports/presentation/sold_products_screen.dart';
 import '../features/settings/presentation/settings_screen.dart';
 import 'shell_screen.dart';
 
@@ -44,6 +45,7 @@ final GoRouter appRouter = GoRouter(
         _branch('/products', const ProductsScreen()),
         _branch('/customers', const CustomersScreen()),
         _branch('/reports', const ReportsScreen()),
+        _branch('/sold', const SoldProductsScreen()),
         _branch('/settings', const SettingsScreen()),
       ],
     ),

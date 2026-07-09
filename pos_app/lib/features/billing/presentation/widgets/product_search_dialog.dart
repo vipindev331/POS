@@ -9,7 +9,8 @@ import '../../../products/data/products_repository.dart';
 
 class ProductSearchDialog extends StatefulWidget {
   final ProductsRepository repository;
-  const ProductSearchDialog({super.key, required this.repository});
+  final String initialTerm;
+  const ProductSearchDialog({super.key, required this.repository, this.initialTerm = ''});
 
   @override
   State<ProductSearchDialog> createState() => _ProductSearchDialogState();
@@ -21,24 +22,39 @@ class _ProductSearchDialogState extends State<ProductSearchDialog> {
   List<Product> _results = const [];
   int _highlight = 0;
   bool _loading = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _search('');
+    _controller.text = widget.initialTerm;
+    _search(widget.initialTerm);
   }
 
   Future<void> _search(String term) async {
-    setState(() => _loading = true);
-    final results = term.trim().isEmpty
-        ? await widget.repository.all()
-        : await widget.repository.search(term);
-    if (!mounted) return;
     setState(() {
-      _results = results.take(50).toList();
-      _highlight = 0;
-      _loading = false;
+      _loading = true;
+      _error = null;
     });
+    try {
+      final results = term.trim().isEmpty
+          ? await widget.repository.all()
+          : await widget.repository.search(term);
+      if (!mounted) return;
+      setState(() {
+        _results = results.take(50).toList();
+        _highlight = 0;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // Surface the failure instead of hanging on a spinner.
+      setState(() {
+        _results = const [];
+        _loading = false;
+        _error = '$e';
+      });
+    }
   }
 
   void _move(int delta) {
@@ -101,7 +117,14 @@ class _ProductSearchDialogState extends State<ProductSearchDialog> {
               Expanded(
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
-                    : _results.isEmpty
+                    : _error != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Text('Search failed:\n$_error', textAlign: TextAlign.center),
+                            ),
+                          )
+                        : _results.isEmpty
                         ? const Center(child: Text('No products'))
                         : ListView.builder(
                             itemCount: _results.length,

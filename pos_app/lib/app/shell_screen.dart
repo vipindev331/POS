@@ -21,6 +21,7 @@ class ShellScreen extends StatelessWidget {
     _Dest('Products', Icons.inventory_2_outlined, Icons.inventory_2),
     _Dest('Customers', Icons.people_outline, Icons.people),
     _Dest('Reports', Icons.bar_chart_outlined, Icons.bar_chart),
+    _Dest('Sold', Icons.sell_outlined, Icons.sell),
     _Dest('Settings', Icons.settings_outlined, Icons.settings),
   ];
 

@@ -12,7 +12,10 @@ import '../core/di/injector.dart';
 import '../features/auth/presentation/auth_cubit.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/billing/presentation/billing_screen.dart';
-import '../shared/widgets/section_scaffold.dart';
+import '../features/customers/presentation/customers_screen.dart';
+import '../features/products/presentation/products_screen.dart';
+import '../features/reports/presentation/reports_screen.dart';
+import '../features/settings/presentation/settings_screen.dart';
 import 'shell_screen.dart';
 
 final GoRouter appRouter = GoRouter(
@@ -38,22 +41,10 @@ final GoRouter appRouter = GoRouter(
       builder: (context, state, shell) => ShellScreen(navigationShell: shell),
       branches: [
         _branch('/billing', const BillingScreen()),
-        _branch('/products', const SectionScaffold(
-          title: 'Products',
-          body: ComingInPart(part: 9, feature: 'Product management'),
-        )),
-        _branch('/customers', const SectionScaffold(
-          title: 'Customers',
-          body: ComingInPart(part: 9, feature: 'Customer management'),
-        )),
-        _branch('/reports', const SectionScaffold(
-          title: 'Reports',
-          body: ComingInPart(part: 9, feature: 'Reports & dashboard'),
-        )),
-        _branch('/settings', const SectionScaffold(
-          title: 'Settings',
-          body: ComingInPart(part: 9, feature: 'Settings'),
-        )),
+        _branch('/products', const ProductsScreen()),
+        _branch('/customers', const CustomersScreen()),
+        _branch('/reports', const ReportsScreen()),
+        _branch('/settings', const SettingsScreen()),
       ],
     ),
   ],

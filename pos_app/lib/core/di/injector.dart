@@ -9,6 +9,7 @@ import '../../features/auth/presentation/auth_cubit.dart';
 import '../../features/billing/data/sales_repository.dart';
 import '../../features/printing/data/print_service.dart';
 import '../../features/printing/data/receipt_printer.dart';
+import '../../features/reports/data/reports_api.dart';
 import '../../features/products/data/products_remote_ds.dart';
 import '../../features/products/data/products_repository.dart';
 import '../../features/sync/data/sync_engine.dart';
@@ -58,4 +59,7 @@ Future<void> registerCore() async {
 
   // Printing (platform-specific implementation selected via conditional import).
   sl.registerSingleton<PrintService>(PrintService(sl<ConfigStore>(), createReceiptPrinter()));
+
+  // Reports.
+  sl.registerSingleton<ReportsApi>(ReportsApi(sl<DioClient>()));
 }

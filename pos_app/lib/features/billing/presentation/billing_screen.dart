@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
 import '../../../data/local/database.dart';
+import '../../printing/data/print_service.dart';
 import '../../products/data/products_repository.dart';
 import '../../sync/presentation/sync_badge.dart';
 import '../data/sales_repository.dart';
@@ -117,7 +118,7 @@ class _BillingViewState extends State<_BillingView> {
         _checkout(PayMethod.upi);
         return KeyEventResult.handled;
       case LogicalKeyboardKey.f10:
-        _notify('Printing arrives in Part 7');
+        _reprintLast();
         return KeyEventResult.handled;
       case LogicalKeyboardKey.f12:
         _checkout(PayMethod.cash);
@@ -229,7 +230,25 @@ class _BillingViewState extends State<_BillingView> {
     final checkout = await _cubit.checkout(result.payments);
     if (mounted && checkout != null) {
       _notify('Bill saved (${checkout.localNo}) · ${formatPaise(checkout.totals.grandTotal)}');
+      await _printBill(checkout.billId, customer: _cubit.state.customerName ?? 'Walk-in');
     }
+    _focusBarcode();
+  }
+
+  Future<void> _printBill(String billId, {String customer = 'Walk-in'}) async {
+    final full = await sl<SalesRepository>().fullBill(billId);
+    if (full == null) return;
+    final outcome = await sl<PrintService>().printBill(full, customer: customer);
+    if (mounted && !outcome.success) _notify(outcome.message);
+  }
+
+  Future<void> _reprintLast() async {
+    final recent = await sl<SalesRepository>().recentBills();
+    if (recent.isEmpty) {
+      _notify('No bill to reprint');
+      return;
+    }
+    await _printBill(recent.first.id);
     _focusBarcode();
   }
 

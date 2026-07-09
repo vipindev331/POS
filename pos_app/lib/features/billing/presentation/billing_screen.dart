@@ -10,6 +10,7 @@ import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
 import '../../../data/local/database.dart';
 import '../../products/data/products_repository.dart';
+import '../../sync/presentation/sync_badge.dart';
 import '../data/sales_repository.dart';
 import '../domain/cart.dart';
 import 'billing_cubit.dart';
@@ -252,11 +253,12 @@ class _BillingViewState extends State<_BillingView> {
                 buildWhen: (a, b) => a.customerName != b.customerName,
                 builder: (_, s) => Center(
                   child: Padding(
-                    padding: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.only(right: 4),
                     child: Text(s.customerName ?? 'Walk-in'),
                   ),
                 ),
               ),
+              const SyncBadge(),
             ],
           ),
           body: Column(

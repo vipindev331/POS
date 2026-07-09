@@ -4,9 +4,9 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 
-import '../../../core/di/injector.dart';
 import '../../../core/network/connectivity_service.dart';
 import '../../../core/network/dio_client.dart';
+import '../../../core/di/injector.dart';
 
 class SystemStatusCard extends StatefulWidget {
   const SystemStatusCard({super.key});
@@ -31,9 +31,9 @@ class _SystemStatusCardState extends State<SystemStatusCard> {
       _ok = false;
     });
     try {
-      // /health lives at the server root, not under /api/v1.
-      final dio = sl<DioClient>().dio;
-      final res = await dio.getUri(
+      // /health lives at the server root, not under /api/v1 — use a bare Dio so
+      // the client's baseUrl doesn't rewrite the absolute URL.
+      final res = await Dio().getUri(
         Uri.parse(kApiBaseUrl.replaceFirst('/api/v1', '/health')),
         options: Options(validateStatus: (s) => s != null && s < 500),
       );

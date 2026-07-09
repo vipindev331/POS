@@ -67,6 +67,15 @@ class SalesDao extends DatabaseAccessor<AppDatabase> with _$SalesDaoMixin {
       (update(bills)..where((b) => b.id.equals(id)))
           .write(BillsCompanion(syncState: const Value('synced'), invoiceNo: Value(invoiceNo)));
 
+  Future<int> pendingSyncBills() async {
+    final c = countAll();
+    final row = await (selectOnly(bills)
+          ..addColumns([c])
+          ..where(bills.syncState.equals('pending')))
+        .getSingle();
+    return row.read(c) ?? 0;
+  }
+
   Future<List<Bill>> heldBills() =>
       (select(bills)
             ..where((b) => b.status.equals('held') & b.deletedAt.isNull())

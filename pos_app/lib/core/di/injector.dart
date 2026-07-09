@@ -7,6 +7,8 @@ import '../../data/local/database.dart';
 import '../../features/billing/data/sales_repository.dart';
 import '../../features/products/data/products_remote_ds.dart';
 import '../../features/products/data/products_repository.dart';
+import '../../features/sync/data/sync_engine.dart';
+import '../../features/sync/data/sync_remote_ds.dart';
 import '../config/config_store.dart';
 import '../network/connectivity_service.dart';
 import '../network/dio_client.dart';
@@ -39,4 +41,10 @@ Future<void> registerCore() async {
     ProductsRepository(sl<AppDatabase>(), sl<ProductsRemoteDataSource>(), sl<ConnectivityService>()),
   );
   sl.registerSingleton<SalesRepository>(SalesRepository(sl<AppDatabase>()));
+
+  // Sync engine (started from main after DI is ready).
+  sl.registerSingleton<SyncRemoteDataSource>(SyncRemoteDataSource(sl<DioClient>()));
+  sl.registerSingleton<SyncEngine>(
+    SyncEngine(sl<AppDatabase>(), sl<SyncRemoteDataSource>(), sl<ConnectivityService>()),
+  );
 }

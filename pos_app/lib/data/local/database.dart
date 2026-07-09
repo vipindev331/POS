@@ -33,5 +33,13 @@ class AppDatabase extends _$AppDatabase {
   @override
   int get schemaVersion => 1;
 
-  static QueryExecutor _open() => driftDatabase(name: 'pos_db');
+  static QueryExecutor _open() => driftDatabase(
+    name: 'pos_db',
+    // On web, drift needs to be told where the WASM/worker assets live.
+    // These files are served from web/ (sqlite3.wasm, drift_worker.js).
+    web: DriftWebOptions(
+      sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+      driftWorker: Uri.parse('drift_worker.js'),
+    ),
+  );
 }

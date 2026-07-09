@@ -3,6 +3,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/auth/presentation/user_menu.dart';
+
 class ShellScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
   const ShellScreen({super.key, required this.navigationShell});
@@ -34,6 +36,12 @@ class ShellScreen extends StatelessWidget {
               leading: const Padding(
                 padding: EdgeInsets.symmetric(vertical: 12),
                 child: Icon(Icons.storefront, size: 28),
+              ),
+              trailing: const Expanded(
+                child: Align(
+                  alignment: Alignment.bottomCenter,
+                  child: Padding(padding: EdgeInsets.only(bottom: 12), child: UserMenu()),
+                ),
               ),
               destinations: [
                 for (final d in _destinations)

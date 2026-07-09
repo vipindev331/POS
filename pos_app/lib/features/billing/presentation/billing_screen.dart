@@ -9,6 +9,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
 import '../../../data/local/database.dart';
+import '../../auth/presentation/auth_cubit.dart';
+import '../../auth/presentation/user_menu.dart';
 import '../../printing/data/print_service.dart';
 import '../../products/data/products_repository.dart';
 import '../../sync/presentation/sync_badge.dart';
@@ -25,7 +27,11 @@ class BillingScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => BillingCubit(sl<ProductsRepository>(), sl<SalesRepository>()),
+      create: (_) => BillingCubit(
+        sl<ProductsRepository>(),
+        sl<SalesRepository>(),
+        cashierId: sl<AuthCubit>().state.user?.id,
+      ),
       child: const _BillingView(),
     );
   }
@@ -278,6 +284,10 @@ class _BillingViewState extends State<_BillingView> {
                 ),
               ),
               const SyncBadge(),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Center(child: UserMenu()),
+              ),
             ],
           ),
           body: Column(

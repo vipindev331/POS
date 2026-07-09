@@ -4,6 +4,8 @@
 import 'package:get_it/get_it.dart';
 
 import '../../data/local/database.dart';
+import '../../features/auth/data/auth_repository.dart';
+import '../../features/auth/presentation/auth_cubit.dart';
 import '../../features/billing/data/sales_repository.dart';
 import '../../features/printing/data/print_service.dart';
 import '../../features/printing/data/receipt_printer.dart';
@@ -31,6 +33,10 @@ Future<void> registerCore() async {
   final tokenStore = await TokenStore.create();
   sl.registerSingleton<TokenStore>(tokenStore);
   sl.registerSingleton<DioClient>(DioClient(tokenStore));
+
+  // Authentication (session state shared by router guard + UI).
+  sl.registerSingleton<AuthRepository>(AuthRepository(sl<DioClient>(), tokenStore));
+  sl.registerSingleton<AuthCubit>(AuthCubit(sl<AuthRepository>()));
 
   // Connectivity.
   final connectivity = ConnectivityService();

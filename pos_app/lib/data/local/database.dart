@@ -11,6 +11,13 @@ import 'daos/sales_dao.dart';
 import 'daos/sync_dao.dart';
 import 'tables/tables.dart';
 
+// Re-export DAOs (and their helper types like FullBill) so consumers that
+// import database.dart get the full local-data surface from one import.
+export 'daos/catalog_dao.dart';
+export 'daos/parties_dao.dart';
+export 'daos/sales_dao.dart';
+export 'daos/sync_dao.dart';
+
 part 'database.g.dart';
 
 @DriftDatabase(

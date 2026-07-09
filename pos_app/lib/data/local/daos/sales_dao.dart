@@ -66,4 +66,19 @@ class SalesDao extends DatabaseAccessor<AppDatabase> with _$SalesDaoMixin {
   Future<void> markSynced(String id, String invoiceNo) =>
       (update(bills)..where((b) => b.id.equals(id)))
           .write(BillsCompanion(syncState: const Value('synced'), invoiceNo: Value(invoiceNo)));
+
+  Future<List<Bill>> heldBills() =>
+      (select(bills)
+            ..where((b) => b.status.equals('held') & b.deletedAt.isNull())
+            ..orderBy([(b) => OrderingTerm(expression: b.createdAt, mode: OrderingMode.desc)]))
+          .get();
+
+  /// Remove a bill and its children (used when resuming a held bill into the cart).
+  Future<void> deleteBillCascade(String id) async {
+    await transaction(() async {
+      await (delete(billItems)..where((i) => i.billId.equals(id))).go();
+      await (delete(payments)..where((p) => p.billId.equals(id))).go();
+      await (delete(bills)..where((b) => b.id.equals(id))).go();
+    });
+  }
 }

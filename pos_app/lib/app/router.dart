@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
-import '../features/dashboard/presentation/system_status_card.dart';
+import '../features/billing/presentation/billing_screen.dart';
 import '../shared/widgets/section_scaffold.dart';
 import 'shell_screen.dart';
 
@@ -17,7 +17,7 @@ final GoRouter appRouter = GoRouter(
     StatefulShellRoute.indexedStack(
       builder: (context, state, shell) => ShellScreen(navigationShell: shell),
       branches: [
-        _branch('/billing', const _BillingHome()),
+        _branch('/billing', const BillingScreen()),
         _branch('/products', const SectionScaffold(
           title: 'Products',
           body: ComingInPart(part: 5, feature: 'Product management'),
@@ -42,26 +42,3 @@ final GoRouter appRouter = GoRouter(
 StatefulShellBranch _branch(String path, Widget child) => StatefulShellBranch(
       routes: [GoRoute(path: path, builder: (_, _) => child)],
     );
-
-class _BillingHome extends StatelessWidget {
-  const _BillingHome();
-
-  @override
-  Widget build(BuildContext context) {
-    return SectionScaffold(
-      title: 'Billing',
-      body: ListView(
-        children: const [
-          SystemStatusCard(),
-          Padding(
-            padding: EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              'Core is wired (DI, config, network, connectivity, tax engine). '
-              'The fast billing screen with barcode + F2–F12 shortcuts arrives in Part 5.',
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}

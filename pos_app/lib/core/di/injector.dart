@@ -4,6 +4,9 @@
 import 'package:get_it/get_it.dart';
 
 import '../../data/local/database.dart';
+import '../../features/billing/data/sales_repository.dart';
+import '../../features/products/data/products_remote_ds.dart';
+import '../../features/products/data/products_repository.dart';
 import '../config/config_store.dart';
 import '../network/connectivity_service.dart';
 import '../network/dio_client.dart';
@@ -29,4 +32,11 @@ Future<void> registerCore() async {
   final connectivity = ConnectivityService();
   await connectivity.init();
   sl.registerSingleton<ConnectivityService>(connectivity);
+
+  // Feature repositories.
+  sl.registerSingleton<ProductsRemoteDataSource>(ProductsRemoteDataSource(sl<DioClient>()));
+  sl.registerSingleton<ProductsRepository>(
+    ProductsRepository(sl<AppDatabase>(), sl<ProductsRemoteDataSource>(), sl<ConnectivityService>()),
+  );
+  sl.registerSingleton<SalesRepository>(SalesRepository(sl<AppDatabase>()));
 }

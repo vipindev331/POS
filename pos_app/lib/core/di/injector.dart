@@ -3,6 +3,7 @@
 // the Drift database (Part 4), repositories, and Cubits.
 import 'package:get_it/get_it.dart';
 
+import '../../data/local/database.dart';
 import '../config/config_store.dart';
 import '../network/connectivity_service.dart';
 import '../network/dio_client.dart';
@@ -15,6 +16,9 @@ Future<void> registerCore() async {
   final config = createConfigStore();
   await config.init();
   sl.registerSingleton<ConfigStore>(config);
+
+  // Local Drift database (offline source of truth).
+  sl.registerSingleton<AppDatabase>(AppDatabase());
 
   // Token storage + HTTP client.
   final tokenStore = await TokenStore.create();

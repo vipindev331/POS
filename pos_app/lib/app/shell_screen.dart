@@ -24,18 +24,29 @@ class ShellScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     if (wide) {
+      // Sky-blue side menu with white icons/labels; on-primary is the
+      // theme-computed contrast colour for text/icons over primary.
+      final onRail = scheme.onPrimary;
+      final onRailDim = scheme.onPrimary.withValues(alpha: 0.75);
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
+              backgroundColor: scheme.primary,
+              indicatorColor: scheme.onPrimary.withValues(alpha: 0.20),
               selectedIndex: navigationShell.currentIndex,
               onDestinationSelected: _go,
               labelType: NavigationRailLabelType.all,
-              leading: const Padding(
-                padding: EdgeInsets.symmetric(vertical: 12),
-                child: Icon(Icons.storefront, size: 28),
+              selectedIconTheme: IconThemeData(color: onRail),
+              unselectedIconTheme: IconThemeData(color: onRailDim),
+              selectedLabelTextStyle: TextStyle(color: onRail, fontWeight: FontWeight.w600),
+              unselectedLabelTextStyle: TextStyle(color: onRailDim),
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Icon(Icons.storefront, size: 28, color: onRail),
               ),
               trailing: const Expanded(
                 child: Align(

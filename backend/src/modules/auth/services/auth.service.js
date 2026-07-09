@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { AuthRepository } from '../repositories/auth.repository.js';
 import { signAccess, signRefresh, verifyRefresh, hashToken } from '../../../utils/jwt.js';
-import { newId, now, unauthorized } from '../../../utils/http.js';
+import { newId, now, unauthorized, notFound, badRequest } from '../../../utils/http.js';
 import { audit } from '../../../utils/audit.js';
 import env from '../../../config/env.js';
 
@@ -91,6 +91,45 @@ export const AuthService = {
         updated_at: now(),
       }),
     );
+  },
+
+  listUsers() {
+    return AuthRepository.listUsers().map(publicUser);
+  },
+
+  // Managers may edit full name, role, permissions, and active flag. Username
+  // and password are handled separately (username is immutable; see resetPassword).
+  updateUser(id, { fullName, role, permissions, active }) {
+    const existing = AuthRepository.findById(id);
+    if (!existing) throw notFound('User not found');
+    const updated = AuthRepository.updateUser(id, {
+      full_name: fullName ?? existing.full_name,
+      role: role ?? existing.role,
+      permissions:
+        permissions !== undefined ? JSON.stringify(permissions) : existing.permissions,
+      active: active !== undefined ? (active ? 1 : 0) : existing.active,
+      updated_at: now(),
+    });
+    return publicUser(updated);
+  },
+
+  async resetPassword(id, newPassword) {
+    const existing = AuthRepository.findById(id);
+    if (!existing) throw notFound('User not found');
+    const hash = await bcrypt.hash(newPassword, 10);
+    AuthRepository.updatePassword(id, hash, now());
+    // Force re-login everywhere with the new credentials.
+    AuthRepository.revokeAllForUser(id);
+    return publicUser(AuthRepository.findById(id));
+  },
+
+  deleteUser(id, actingUserId) {
+    const existing = AuthRepository.findById(id);
+    if (!existing) throw notFound('User not found');
+    if (id === actingUserId) throw badRequest('You cannot delete your own account');
+    AuthRepository.softDeleteUser(id, now());
+    AuthRepository.revokeAllForUser(id);
+    return { success: true };
   },
 };
 

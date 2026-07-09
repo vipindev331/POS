@@ -3,21 +3,24 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const seed = Color(0xFF0B6E4F); // retail green
+  static const seed = Color(0xFF03A9F4); // sky blue
 
   static ThemeData light() => _base(Brightness.light);
   static ThemeData dark() => _base(Brightness.dark);
 
   static ThemeData _base(Brightness brightness) {
     final scheme = ColorScheme.fromSeed(seedColor: seed, brightness: brightness);
+    // Keep content areas white in light mode; the sky-blue lives on the
+    // navigation rail (see ShellScreen) and other primary surfaces.
+    final white = brightness == Brightness.light;
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       visualDensity: VisualDensity.compact,
-      scaffoldBackgroundColor: scheme.surface,
+      scaffoldBackgroundColor: white ? Colors.white : scheme.surface,
       appBarTheme: AppBarTheme(
         centerTitle: false,
-        backgroundColor: scheme.surfaceContainerHighest,
+        backgroundColor: white ? Colors.white : scheme.surfaceContainerHighest,
         foregroundColor: scheme.onSurface,
         elevation: 0,
       ),

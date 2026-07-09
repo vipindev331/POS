@@ -16,6 +16,32 @@ export const AuthRepository = {
       .run(u);
     return u;
   },
+  listUsers() {
+    return getDb()
+      .prepare('SELECT * FROM users WHERE deleted_at IS NULL ORDER BY full_name, username')
+      .all();
+  },
+  updateUser(id, fields) {
+    getDb()
+      .prepare(
+        `UPDATE users
+            SET full_name = @full_name, role = @role, permissions = @permissions,
+                active = @active, updated_at = @updated_at
+          WHERE id = @id AND deleted_at IS NULL`,
+      )
+      .run({ ...fields, id });
+    return AuthRepository.findById(id);
+  },
+  updatePassword(id, passwordHash, updatedAt) {
+    getDb()
+      .prepare('UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL')
+      .run(passwordHash, updatedAt, id);
+  },
+  softDeleteUser(id, deletedAt) {
+    getDb()
+      .prepare('UPDATE users SET active = 0, deleted_at = ?, updated_at = ? WHERE id = ?')
+      .run(deletedAt, deletedAt, id);
+  },
   saveRefreshToken(row) {
     getDb()
       .prepare(

@@ -232,6 +232,8 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
   String? _error;
 
   bool get _isEdit => widget.existing != null;
+  // Admins may assign any role; managers only ever create/edit staff.
+  bool get _isAdmin => sl<AuthRepository>().cachedUser?.isAdmin ?? false;
 
   @override
   void initState() {
@@ -295,7 +297,7 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Text(_isEdit ? 'Edit account' : 'Add staff'),
+      title: Text(_isEdit ? 'Edit account' : (_isAdmin ? 'Add account' : 'Add staff')),
       content: SizedBox(
         width: 360,
         child: Form(
@@ -331,16 +333,20 @@ class _StaffFormDialogState extends State<StaffFormDialog> {
                       (v == null || v.length < 6) ? 'At least 6 characters' : null,
                 ),
               ],
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                initialValue: _role,
-                decoration: const InputDecoration(labelText: 'Role'),
-                items: const [
-                  DropdownMenuItem(value: 'staff', child: Text('Staff')),
-                  DropdownMenuItem(value: 'manager', child: Text('Manager')),
-                ],
-                onChanged: _submitting ? null : (v) => setState(() => _role = v ?? 'staff'),
-              ),
+              // Only an admin can assign roles; a manager creates staff only.
+              if (_isAdmin) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  initialValue: _role,
+                  decoration: const InputDecoration(labelText: 'Role'),
+                  items: const [
+                    DropdownMenuItem(value: 'staff', child: Text('Staff')),
+                    DropdownMenuItem(value: 'manager', child: Text('Manager')),
+                    DropdownMenuItem(value: 'admin', child: Text('Admin')),
+                  ],
+                  onChanged: _submitting ? null : (v) => setState(() => _role = v ?? 'staff'),
+                ),
+              ],
               // Permissions only apply to staff — managers can do everything.
               if (_role == 'staff') ...[
                 const SizedBox(height: 8),

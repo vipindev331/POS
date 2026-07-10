@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { AuthRepository } from '../repositories/auth.repository.js';
 import { signAccess, signRefresh, verifyRefresh, hashToken } from '../../../utils/jwt.js';
-import { newId, now, unauthorized, notFound, badRequest } from '../../../utils/http.js';
+import { newId, now, unauthorized, notFound, badRequest, forbidden } from '../../../utils/http.js';
 import { audit } from '../../../utils/audit.js';
 import env from '../../../config/env.js';
 
@@ -77,7 +77,16 @@ export const AuthService = {
     return publicUser(user);
   },
 
-  async createUser({ username, password, fullName = '', role = 'staff', permissions = [] }) {
+  // Managers may only manage staff accounts; admins may manage anyone.
+  // `actor` is the authenticated req.user ({ id, role }).
+  _assertCanManageRole(actor, targetRole) {
+    if (actor?.role === 'admin') return;
+    if (actor?.role === 'manager' && targetRole === 'staff') return;
+    throw forbidden('Managers can only manage staff accounts');
+  },
+
+  async createUser({ username, password, fullName = '', role = 'staff', permissions = [] }, actor) {
+    this._assertCanManageRole(actor, role);
     const hash = await bcrypt.hash(password, 10);
     return publicUser(
       AuthRepository.insertUser({
@@ -93,15 +102,20 @@ export const AuthService = {
     );
   },
 
-  listUsers() {
-    return AuthRepository.listUsers().map(publicUser);
+  // Admins see all accounts; managers only see the staff they can manage.
+  listUsers(actor) {
+    const users = AuthRepository.listUsers().map(publicUser);
+    if (actor?.role === 'admin') return users;
+    return users.filter((u) => u.role === 'staff');
   },
 
-  // Managers may edit full name, role, permissions, and active flag. Username
-  // and password are handled separately (username is immutable; see resetPassword).
-  updateUser(id, { fullName, role, permissions, active }) {
+  // Admins edit anyone; managers only staff (and can't promote to manager/admin).
+  // Username and password are handled separately (username is immutable).
+  updateUser(id, { fullName, role, permissions, active }, actor) {
     const existing = AuthRepository.findById(id);
     if (!existing) throw notFound('User not found');
+    this._assertCanManageRole(actor, existing.role);
+    if (role !== undefined) this._assertCanManageRole(actor, role);
     const updated = AuthRepository.updateUser(id, {
       full_name: fullName ?? existing.full_name,
       role: role ?? existing.role,
@@ -113,9 +127,10 @@ export const AuthService = {
     return publicUser(updated);
   },
 
-  async resetPassword(id, newPassword) {
+  async resetPassword(id, newPassword, actor) {
     const existing = AuthRepository.findById(id);
     if (!existing) throw notFound('User not found');
+    this._assertCanManageRole(actor, existing.role);
     const hash = await bcrypt.hash(newPassword, 10);
     AuthRepository.updatePassword(id, hash, now());
     // Force re-login everywhere with the new credentials.
@@ -123,10 +138,11 @@ export const AuthService = {
     return publicUser(AuthRepository.findById(id));
   },
 
-  deleteUser(id, actingUserId) {
+  deleteUser(id, actor) {
     const existing = AuthRepository.findById(id);
     if (!existing) throw notFound('User not found');
-    if (id === actingUserId) throw badRequest('You cannot delete your own account');
+    if (id === actor?.id) throw badRequest('You cannot delete your own account');
+    this._assertCanManageRole(actor, existing.role);
     AuthRepository.softDeleteUser(id, now());
     AuthRepository.revokeAllForUser(id);
     return { success: true };

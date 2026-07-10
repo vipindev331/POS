@@ -12,12 +12,12 @@ class ThemeController extends ValueNotifier<ThemeMode> {
 
   static ThemeMode _read(ConfigStore c) {
     switch (c.read<String>(_key)) {
-      case 'light':
-        return ThemeMode.light;
+      case 'dark':
+        return ThemeMode.dark;
       case 'system':
         return ThemeMode.system;
       default:
-        return ThemeMode.dark;
+        return ThemeMode.light; // light is the default
     }
   }
 

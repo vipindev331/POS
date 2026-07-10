@@ -1,5 +1,6 @@
 // Product catalog viewer. Reads the local Drift cache reactively (works
 // offline); a refresh pulls the latest from the backend.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -8,6 +9,7 @@ import '../../../core/money/tax_engine.dart';
 import '../../../data/local/database.dart';
 import '../../auth/domain/auth_user.dart';
 import '../../auth/presentation/auth_cubit.dart';
+import '../../billing/presentation/widgets/barcode_scanner_sheet.dart';
 import '../data/products_repository.dart';
 
 class ProductsScreen extends StatefulWidget {
@@ -48,6 +50,38 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final added = await showDialog<bool>(
       context: context,
       builder: (_) => const _ProductFormDialog(),
+    );
+    if (added == true && mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Product added')));
+    }
+  }
+
+  // Scan a barcode (hardware scanner device on any platform, or camera on
+  // Android/iOS) and either open the matching product or start a new one with
+  // the barcode prefilled — so a scan never creates a duplicate.
+  Future<void> _scanToAdd() async {
+    final code = await showDialog<String>(
+      context: context,
+      builder: (_) => const _ScanBarcodePrompt(),
+    );
+    if (code == null || code.trim().isEmpty || !mounted) return;
+    final barcode = code.trim();
+
+    final existing = await _repo.byBarcode(barcode);
+    if (!mounted) return;
+
+    if (existing != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${existing.name}" already exists — opening it')),
+      );
+      await _editProduct(existing);
+      return;
+    }
+
+    final added = await showDialog<bool>(
+      context: context,
+      builder: (_) => _ProductFormDialog(initialBarcode: barcode),
     );
     if (added == true && mounted) {
       ScaffoldMessenger.of(context)
@@ -103,6 +137,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
       appBar: AppBar(
         title: const Text('Products'),
         actions: [
+          IconButton(
+            onPressed: _scanToAdd,
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Scan to add product',
+          ),
           IconButton(
             onPressed: _refreshing ? null : _refresh,
             icon: _refreshing
@@ -214,7 +253,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
 /// fields are entered in rupees and stored as paise. Pops `true` on success.
 class _ProductFormDialog extends StatefulWidget {
   final Product? existing;
-  const _ProductFormDialog({this.existing});
+  final String? initialBarcode;
+  const _ProductFormDialog({this.existing, this.initialBarcode});
 
   @override
   State<_ProductFormDialog> createState() => _ProductFormDialogState();
@@ -259,6 +299,9 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
       _purchase.text = _rupees(p.purchasePrice);
       _stock.text = '${p.stock}';
       _reorder.text = '${p.reorderLevel}';
+    } else if (widget.initialBarcode != null) {
+      // New product started from a scan: prefill the scanned barcode.
+      _barcode.text = widget.initialBarcode!;
     }
   }
 
@@ -347,10 +390,7 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
                         helper: 'Your own product code for tracking stock (e.g. MILK-1L)'),
                   ),
                   const SizedBox(width: 12),
-                  Expanded(
-                    child: _field(_barcode, 'Barcode (optional)',
-                        helper: 'Scannable number on the pack (EAN/UPC)'),
-                  ),
+                  Expanded(child: _barcodeField()),
                 ]),
                 const SizedBox(height: 18),
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -427,6 +467,41 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
     );
   }
 
+  // Barcode field with a camera-scan action on mobile. Scanning a physical
+  // product's barcode/QR fills the field; desktop/web just type or use a
+  // hardware scanner as before.
+  Widget _barcodeField() {
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return TextFormField(
+      controller: _barcode,
+      decoration: InputDecoration(
+        labelText: 'Barcode (optional)',
+        helperText: 'Scannable number on the pack (EAN/UPC)',
+        helperMaxLines: 2,
+        suffixIcon: isMobile
+            ? IconButton(
+                tooltip: 'Scan barcode',
+                icon: const Icon(Icons.qr_code_scanner),
+                onPressed: _submitting ? null : _scanBarcode,
+              )
+            : null,
+      ),
+    );
+  }
+
+  Future<void> _scanBarcode() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const BarcodeScannerScreen(singleScan: true),
+      ),
+    );
+    if (code != null && code.trim().isNotEmpty) {
+      setState(() => _barcode.text = code.trim());
+    }
+  }
+
   Widget _field(TextEditingController c, String label, {bool number = false, String? helper}) =>
       TextFormField(
         controller: c,
@@ -437,4 +512,84 @@ class _ProductFormDialogState extends State<_ProductFormDialog> {
           helperMaxLines: 2,
         ),
       );
+}
+
+/// Prompt that captures one barcode via a hardware scanner device (autofocused
+/// field, scanner types + Enter) or the device camera on Android/iOS. Pops the
+/// scanned/typed code as a `String`, or null if cancelled.
+class _ScanBarcodePrompt extends StatefulWidget {
+  const _ScanBarcodePrompt();
+
+  @override
+  State<_ScanBarcodePrompt> createState() => _ScanBarcodePromptState();
+}
+
+class _ScanBarcodePromptState extends State<_ScanBarcodePrompt> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit(String value) {
+    final code = value.trim();
+    if (code.isNotEmpty) Navigator.of(context).pop(code);
+  }
+
+  Future<void> _camera() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => const BarcodeScannerScreen(singleScan: true),
+      ),
+    );
+    if (!mounted) return;
+    if (code != null && code.trim().isNotEmpty) {
+      Navigator.of(context).pop(code.trim());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
+    return AlertDialog(
+      title: const Text('Scan product'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            textInputAction: TextInputAction.done,
+            decoration: const InputDecoration(
+              prefixIcon: Icon(Icons.qr_code_scanner),
+              hintText: 'Scan with device or type, then Enter',
+            ),
+            onSubmitted: _submit,
+          ),
+          if (isMobile) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _camera,
+              icon: const Icon(Icons.camera_alt),
+              label: const Text('Use camera'),
+            ),
+          ],
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: () => _submit(_controller.text),
+          child: const Text('Continue'),
+        ),
+      ],
+    );
+  }
 }

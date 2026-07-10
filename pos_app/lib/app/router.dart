@@ -31,8 +31,18 @@ final GoRouter appRouter = GoRouter(
     final loggingIn = loc == '/login';
     if (status == AuthStatus.unauthenticated) return loggingIn ? null : '/login';
 
+    final role = sl<AuthCubit>().state.user?.role;
+
+    // Admin is a restricted back-office role: only the Settings area (users +
+    // company). Land there and keep them out of store screens.
+    if (role == 'admin') {
+      return loc.startsWith('/settings') ? null : '/settings';
+    }
+
     // Authenticated: bounce away from splash/login.
     if (loc == '/' || loc == '/login') return '/billing';
+    // Reports (dashboard/profit) are manager-only — keep staff out entirely.
+    if (role != 'manager' && loc.startsWith('/reports')) return '/billing';
     return null;
   },
   routes: [

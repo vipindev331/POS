@@ -2,6 +2,7 @@
 //   Barcode field is always refocused after each scan/add.
 //   F2 search · F3 customer · F4 discount · F5 hold · F6 resume
 //   F7 cash · F8 card · F9 UPI · F10 print · F12 checkout · Esc cancel · Ctrl+N new
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -18,6 +19,7 @@ import '../data/sales_repository.dart';
 import '../domain/cart.dart';
 import 'billing_cubit.dart';
 import 'billing_state.dart';
+import 'widgets/barcode_scanner_sheet.dart';
 import 'widgets/payment_dialog.dart';
 import 'widgets/product_search_dialog.dart';
 
@@ -67,8 +69,26 @@ class _BillingViewState extends State<_BillingView> {
     });
   }
 
+  bool get _isMobile =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
+
   void _focusBarcode() {
-    if (mounted) _barcodeFocus.requestFocus();
+    // On phones/tablets, don't force the soft keyboard open every time — mobile
+    // users scan with the camera. Keyboard-driven desktop keeps its focus.
+    if (mounted && !_isMobile) _barcodeFocus.requestFocus();
+  }
+
+  // Open the full-screen camera scanner (mobile only). Continuous: each detected
+  // barcode is added to the cart; the sheet stays open until the user taps Done.
+  Future<void> _scanWithCamera() async {
+    await Navigator.of(context).push(MaterialPageRoute(
+      fullscreenDialog: true,
+      builder: (_) => BarcodeScannerScreen(
+        onDetect: (code) => _cubit.addByBarcode(code),
+      ),
+    ));
+    _focusBarcode(); // restore keyboard/USB-scanner flow on return
   }
 
   Future<void> _submitBarcode(String value) async {
@@ -269,6 +289,8 @@ class _BillingViewState extends State<_BillingView> {
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     return Focus(
       focusNode: _screenFocus,
       onKeyEvent: _onKey,
@@ -279,6 +301,9 @@ class _BillingViewState extends State<_BillingView> {
           if (msg != null) _notify(msg);
         },
         child: Scaffold(
+          // Barcode field lives at the top, so let the soft keyboard overlay the
+          // bottom (totals/legend) rather than shrinking the layout into overflow.
+          resizeToAvoidBottomInset: false,
           appBar: AppBar(
             title: const Text('Billing'),
             actions: [
@@ -304,6 +329,7 @@ class _BillingViewState extends State<_BillingView> {
                 controller: _barcodeController,
                 focusNode: _barcodeFocus,
                 onSubmit: _submitBarcode,
+                onScan: _scanWithCamera,
               ),
               const Divider(height: 1),
               Expanded(
@@ -323,7 +349,8 @@ class _BillingViewState extends State<_BillingView> {
                         ],
                       ),
               ),
-              const _ShortcutLegend(),
+              // Function-key legend is only useful with a physical keyboard.
+              if (!isMobile) const _ShortcutLegend(),
             ],
           ),
         ),
@@ -336,10 +363,18 @@ class _BarcodeBar extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onSubmit;
-  const _BarcodeBar({required this.controller, required this.focusNode, required this.onSubmit});
+  final VoidCallback onScan;
+  const _BarcodeBar({
+    required this.controller,
+    required this.focusNode,
+    required this.onSubmit,
+    required this.onScan,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     return Padding(
       padding: const EdgeInsets.all(12),
       child: Row(
@@ -350,14 +385,23 @@ class _BarcodeBar extends StatelessWidget {
             child: TextField(
               controller: controller,
               focusNode: focusNode,
-              autofocus: true,
-              textInputAction: TextInputAction.none,
+              // Don't auto-open the soft keyboard on phones; desktop keeps focus.
+              autofocus: !isMobile,
+              textInputAction: TextInputAction.done,
               decoration: const InputDecoration(
                 hintText: 'Scan or type a barcode, then Enter  (F2 to search)',
               ),
               onSubmitted: onSubmit,
             ),
           ),
+          if (isMobile) ...[
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              tooltip: 'Scan with camera',
+              onPressed: onScan,
+              icon: const Icon(Icons.camera_alt),
+            ),
+          ],
         ],
       ),
     );

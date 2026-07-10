@@ -27,8 +27,9 @@ class _ReportsScreenState extends State<ReportsScreen> {
     final isManager = context.read<AuthCubit>().state.user?.isManager ?? false;
     final from = _range.start;
     final to = rangeTo(_range);
+    // Dashboard & Profit are manager-only on the backend; staff would get a 403.
     final tabs = <Tab>[
-      const Tab(text: 'Dashboard'),
+      if (isManager) const Tab(text: 'Dashboard'),
       const Tab(text: 'Sales'),
       const Tab(text: 'GST'),
       if (isManager) const Tab(text: 'Profit'),
@@ -49,7 +50,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             Expanded(
               child: TabBarView(
                 children: [
-                  const _DashboardTab(),
+                  if (isManager) const _DashboardTab(),
                   _SalesTab(from: from, to: to),
                   _GstTab(from: from, to: to),
                   if (isManager) _ProfitTab(from: from, to: to),

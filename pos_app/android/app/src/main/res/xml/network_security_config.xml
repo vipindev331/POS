@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Permit cleartext (http://) only for local development hosts.
+     Production traffic to real domains still requires HTTPS. -->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- Android emulator alias for the host machine's localhost -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">127.0.0.1</domain>
+        <!-- Physical device on the same Wi-Fi: dev machine's LAN IP -->
+        <domain includeSubdomains="true">10.112.9.248</domain>
+    </domain-config>
+</network-security-config>

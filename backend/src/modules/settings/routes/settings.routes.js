@@ -12,7 +12,8 @@ router.use(authenticate);
 
 router.get('/', asyncHandler((_req, res) => ok(res, SettingsService.getAll())));
 router.get('/:key', asyncHandler((req, res) => ok(res, SettingsService.get(req.params.key))));
-router.put('/:key', requireRole('manager'), validate(setSchema),
+// Company profile & other shared settings are edited by admins only.
+router.put('/:key', requireRole('admin'), validate(setSchema),
   asyncHandler((req, res) => ok(res, SettingsService.set(req.params.key, req.body.value))));
 
 export default router;

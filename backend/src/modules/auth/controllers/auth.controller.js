@@ -11,12 +11,12 @@ export const createUserSchema = z.object({
   username: z.string().min(3),
   password: z.string().min(6),
   fullName: z.string().optional(),
-  role: z.enum(['manager', 'staff']).default('staff'),
+  role: z.enum(['admin', 'manager', 'staff']).default('staff'),
   permissions: z.array(z.string()).default([]),
 });
 export const updateUserSchema = z.object({
   fullName: z.string().optional(),
-  role: z.enum(['manager', 'staff']).optional(),
+  role: z.enum(['admin', 'manager', 'staff']).optional(),
   permissions: z.array(z.string()).optional(),
   active: z.boolean().optional(),
 });
@@ -38,18 +38,18 @@ export const AuthController = {
     ok(res, AuthService.me(req.user.id));
   }),
   createUser: asyncHandler(async (req, res) => {
-    ok(res, await AuthService.createUser(req.body), 201);
+    ok(res, await AuthService.createUser(req.body, req.user), 201);
   }),
-  listUsers: asyncHandler(async (_req, res) => {
-    ok(res, AuthService.listUsers());
+  listUsers: asyncHandler((req, res) => {
+    ok(res, AuthService.listUsers(req.user));
   }),
-  updateUser: asyncHandler(async (req, res) => {
-    ok(res, AuthService.updateUser(req.params.id, req.body));
+  updateUser: asyncHandler((req, res) => {
+    ok(res, AuthService.updateUser(req.params.id, req.body, req.user));
   }),
   resetPassword: asyncHandler(async (req, res) => {
-    ok(res, await AuthService.resetPassword(req.params.id, req.body.password));
+    ok(res, await AuthService.resetPassword(req.params.id, req.body.password, req.user));
   }),
-  deleteUser: asyncHandler(async (req, res) => {
-    ok(res, AuthService.deleteUser(req.params.id, req.user.id));
+  deleteUser: asyncHandler((req, res) => {
+    ok(res, AuthService.deleteUser(req.params.id, req.user));
   }),
 };

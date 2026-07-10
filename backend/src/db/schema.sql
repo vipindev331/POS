@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   full_name     TEXT NOT NULL DEFAULT '',
-  role          TEXT NOT NULL CHECK (role IN ('manager','staff')),
+  role          TEXT NOT NULL CHECK (role IN ('admin','manager','staff')),
   permissions   TEXT NOT NULL DEFAULT '[]',          -- JSON array of permission keys
   active        INTEGER NOT NULL DEFAULT 1,
   created_at    INTEGER NOT NULL,

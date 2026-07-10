@@ -196,13 +196,34 @@ class _SoldDetailDialogState extends State<_SoldDetailDialog> {
     return '${two(d.day)}/${two(d.month)}/${d.year}  ${two(d.hour)}:${two(d.minute)}';
   }
 
+  // 'cash,upi' -> 'Cash · UPI'. Empty (unpaid/held) -> 'No payment recorded'.
+  String _payments(Object? raw) {
+    final s = (raw ?? '').toString();
+    if (s.isEmpty) return 'No payment recorded';
+    return s
+        .split(',')
+        .map((m) => m.trim())
+        .where((m) => m.isNotEmpty)
+        .map((m) => m.toLowerCase() == 'upi' ? 'UPI' : '${m[0].toUpperCase()}${m.substring(1)}')
+        .join(' · ');
+  }
+
+  IconData _payIcon(Object? raw) {
+    final s = (raw ?? '').toString().toLowerCase();
+    if (s.contains('card')) return Icons.credit_card;
+    if (s.contains('upi')) return Icons.qr_code_2;
+    if (s.contains('cash')) return Icons.payments_outlined;
+    return Icons.receipt_long;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
       title: Text(widget.name),
       content: SizedBox(
-        width: 460,
-        height: 380,
+        width: 480,
+        height: 420,
         child: FutureBuilder<List<Map<String, dynamic>>>(
           future: _future,
           builder: (context, snap) {
@@ -219,20 +240,49 @@ class _SoldDetailDialogState extends State<_SoldDetailDialog> {
             }
             return ListView.separated(
               itemCount: lines.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const SizedBox(height: 10),
               itemBuilder: (context, i) {
                 final l = lines[i];
                 final inv = (l['invoice_no'] ?? l['billId'] ?? '-').toString();
                 final qty = l['qty'] as int? ?? 0;
                 final unit = l['unit_price'] as int? ?? 0;
                 final total = l['line_total'] as int? ?? 0;
-                return ListTile(
-                  dense: true,
-                  title: Text(inv),
-                  subtitle: Text('${_dateTime(l['created_at'] as int)}'
-                      '  ·  $qty × ${formatPaise(unit)}'),
-                  trailing: Text(formatPaise(total),
-                      style: const TextStyle(fontWeight: FontWeight.w600)),
+                final gst = l['gst_rate'];
+                final customer = (l['customer_name'] ?? '').toString();
+                final phone = (l['customer_phone'] ?? '').toString();
+                final cashier = (l['cashier_name'] ?? '').toString();
+                final billTotal = l['grand_total'] as int? ?? 0;
+
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: scheme.outlineVariant),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(inv,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                          ),
+                          Text(formatPaise(total),
+                              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      _detail(Icons.event, _dateTime(l['created_at'] as int)),
+                      _detail(_payIcon(l['payment_methods']), _payments(l['payment_methods'])),
+                      _detail(Icons.shopping_cart_outlined,
+                          '$qty × ${formatPaise(unit)}${gst != null ? '  ·  GST $gst%' : ''}'),
+                      _detail(Icons.person_outline,
+                          customer.isEmpty ? 'Walk-in customer' : (phone.isEmpty ? customer : '$customer ($phone)')),
+                      if (cashier.isNotEmpty) _detail(Icons.badge_outlined, 'Billed by $cashier'),
+                      _detail(Icons.receipt_long_outlined, 'Bill total ${formatPaise(billTotal)}'),
+                    ],
+                  ),
                 );
               },
             );
@@ -244,4 +294,20 @@ class _SoldDetailDialogState extends State<_SoldDetailDialog> {
       ],
     );
   }
+
+  Widget _detail(IconData icon, String text) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 15, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(text,
+                  style: TextStyle(
+                      fontSize: 13, color: Theme.of(context).colorScheme.onSurfaceVariant)),
+            ),
+          ],
+        ),
+      );
 }

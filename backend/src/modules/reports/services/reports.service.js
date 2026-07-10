@@ -118,12 +118,20 @@ export const ReportsService = {
   },
 
   // Individual sale lines for one product in a date range (drill-down view).
+  // Includes bill-level context: customer, cashier, bill total and the payment
+  // method(s) used (a bill may be split across methods).
   soldProductDetail({ productId, from, to }) {
     return getDb().prepare(
       `SELECT b.id billId, b.invoice_no, b.created_at,
-              bi.qty, bi.unit_price, bi.line_total
+              bi.qty, bi.unit_price, bi.line_total, bi.gst_rate,
+              b.grand_total,
+              c.name customer_name, c.phone customer_phone,
+              u.full_name cashier_name,
+              (SELECT GROUP_CONCAT(DISTINCT p.method) FROM payments p WHERE p.bill_id = b.id) payment_methods
        FROM bill_items bi
        JOIN bills b ON b.id = bi.bill_id
+       LEFT JOIN customers c ON c.id = b.customer_id
+       LEFT JOIN users u ON u.id = b.cashier_id
        WHERE bi.product_id = ? AND b.status='completed' AND b.deleted_at IS NULL
              AND b.created_at BETWEEN ? AND ?
        ORDER BY b.created_at DESC`,

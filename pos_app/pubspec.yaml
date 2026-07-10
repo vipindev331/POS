@@ -46,6 +46,9 @@ dependencies:
   # Receipt QR (pure Dart, generates SVG/bytes; no native deps)
   barcode: ^2.2.8
 
+  # Camera barcode scanning on Android/iOS (ML Kit / AVFoundation)
+  mobile_scanner: ^6.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

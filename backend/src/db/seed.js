@@ -24,6 +24,7 @@ export async function seed() {
     ).run(newId(), username, hash, fullName, role, ts, ts);
   };
 
+  await upsertUser('admin', 'admin123', 'admin', 'Administrator');
   await upsertUser('manager', 'manager123', 'manager', 'Store Manager');
   await upsertUser('staff', 'staff123', 'staff', 'Cashier');
 
@@ -77,7 +78,7 @@ export async function seed() {
     ).run(newId(), ts, ts);
   }
 
-  console.log('✔ seed complete — logins: manager/manager123, staff/staff123');
+  console.log('✔ seed complete — logins: admin/admin123, manager/manager123, staff/staff123');
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

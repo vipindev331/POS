@@ -10,37 +10,51 @@ import '../core/di/injector.dart';
 import '../features/auth/presentation/auth_cubit.dart';
 import '../features/auth/presentation/user_menu.dart';
 import 'theme.dart';
-import 'theme_controller.dart';
 
 class ShellScreen extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
   const ShellScreen({super.key, required this.navigationShell});
 
+  // Order must match the router's StatefulShellRoute branches (index = branch).
+  // Each destination lists the roles allowed to see it:
+  //  · staff/manager run the store · manager also gets Reports
+  //  · admin is a restricted back-office role — only Settings (users + company).
   static const _destinations = [
-    _Dest('Billing', Icons.point_of_sale_outlined, Icons.point_of_sale),
-    _Dest('Products', Icons.inventory_2_outlined, Icons.inventory_2),
-    _Dest('Customers', Icons.people_outline, Icons.people),
-    _Dest('Reports', Icons.bar_chart_outlined, Icons.bar_chart),
-    _Dest('Sold', Icons.sell_outlined, Icons.sell),
-    _Dest('Settings', Icons.settings_outlined, Icons.settings),
+    _Dest('Billing', Icons.point_of_sale_outlined, Icons.point_of_sale, ['staff', 'manager']),
+    _Dest('Products', Icons.inventory_2_outlined, Icons.inventory_2, ['staff', 'manager']),
+    _Dest('Customers', Icons.people_outline, Icons.people, ['staff', 'manager']),
+    _Dest('Reports', Icons.bar_chart_outlined, Icons.bar_chart, ['manager']),
+    _Dest('Sold', Icons.sell_outlined, Icons.sell, ['staff', 'manager']),
+    _Dest('Settings', Icons.settings_outlined, Icons.settings, ['staff', 'manager', 'admin']),
   ];
 
-  void _go(int index) => navigationShell.goBranch(
-        index,
-        initialLocation: index == navigationShell.currentIndex,
+  void _go(int branchIndex) => navigationShell.goBranch(
+        branchIndex,
+        initialLocation: branchIndex == navigationShell.currentIndex,
       );
 
   @override
   Widget build(BuildContext context) {
+    final role = sl<AuthCubit>().state.user?.role ?? 'staff';
+    // Destinations the current role may see, paired with their true branch index
+    // so filtering never misroutes navigation.
+    final visible = <({int branch, _Dest dest})>[
+      for (var i = 0; i < _destinations.length; i++)
+        if (_destinations[i].roles.contains(role))
+          (branch: i, dest: _destinations[i]),
+    ];
+    final sel = visible.indexWhere((e) => e.branch == navigationShell.currentIndex);
+    final selectedIndex = sel < 0 ? 0 : sel;
+
     final wide = MediaQuery.sizeOf(context).width >= 720;
     if (wide) {
       return Scaffold(
         body: Row(
           children: [
             _Sidebar(
-              current: navigationShell.currentIndex,
+              currentBranch: navigationShell.currentIndex,
               onSelect: _go,
-              destinations: _destinations,
+              destinations: visible,
             ),
             const VerticalDivider(width: 1),
             Expanded(child: navigationShell),
@@ -50,27 +64,31 @@ class ShellScreen extends StatelessWidget {
     }
     return Scaffold(
       body: navigationShell,
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: navigationShell.currentIndex,
-        onDestinationSelected: _go,
-        destinations: [
-          for (final d in _destinations)
-            NavigationDestination(
-              icon: Icon(d.icon),
-              selectedIcon: Icon(d.selectedIcon),
-              label: d.label,
+      // NavigationBar requires 2+ destinations; a single-section role (e.g. the
+      // admin, who only has Settings) shows no bottom bar.
+      bottomNavigationBar: visible.length < 2
+          ? null
+          : NavigationBar(
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (i) => _go(visible[i].branch),
+              destinations: [
+                for (final e in visible)
+                  NavigationDestination(
+                    icon: Icon(e.dest.icon),
+                    selectedIcon: Icon(e.dest.selectedIcon),
+                    label: e.dest.label,
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 }
 
 class _Sidebar extends StatelessWidget {
-  final int current;
+  final int currentBranch;
   final ValueChanged<int> onSelect;
-  final List<_Dest> destinations;
-  const _Sidebar({required this.current, required this.onSelect, required this.destinations});
+  final List<({int branch, _Dest dest})> destinations;
+  const _Sidebar({required this.currentBranch, required this.onSelect, required this.destinations});
 
   @override
   Widget build(BuildContext context) {
@@ -87,17 +105,16 @@ class _Sidebar extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 children: [
-                  for (var i = 0; i < destinations.length; i++)
+                  for (final e in destinations)
                     _NavItem(
-                      dest: destinations[i],
-                      selected: i == current,
-                      onTap: () => onSelect(i),
+                      dest: e.dest,
+                      selected: e.branch == currentBranch,
+                      onTap: () => onSelect(e.branch),
                     ),
                 ],
               ),
             ),
             const Divider(height: 1),
-            const _ThemeToggleTile(),
             _SupportTile(),
             const _AccountTile(),
             const SizedBox(height: 8),
@@ -192,29 +209,6 @@ class _NavItem extends StatelessWidget {
   }
 }
 
-class _ThemeToggleTile extends StatelessWidget {
-  const _ThemeToggleTile();
-
-  @override
-  Widget build(BuildContext context) {
-    final controller = sl<ThemeController>();
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: controller,
-      builder: (context, _, _) {
-        final dark = controller.isDark;
-        return ListTile(
-          leading: Icon(dark ? Icons.dark_mode_outlined : Icons.light_mode_outlined, size: 20),
-          title: Text(dark ? 'Dark mode' : 'Light mode',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          trailing: Switch(value: dark, onChanged: (_) => controller.toggle()),
-          dense: true,
-          onTap: controller.toggle,
-        );
-      },
-    );
-  }
-}
-
 class _SupportTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -286,5 +280,6 @@ class _Dest {
   final String label;
   final IconData icon;
   final IconData selectedIcon;
-  const _Dest(this.label, this.icon, this.selectedIcon);
+  final List<String> roles; // roles permitted to see this destination
+  const _Dest(this.label, this.icon, this.selectedIcon, this.roles);
 }

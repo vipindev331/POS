@@ -3,10 +3,13 @@
 // and consumed by the printing service.
 import 'package:flutter/material.dart';
 
+import '../../../app/theme_controller.dart';
 import '../../../core/config/config_store.dart';
 import '../../../core/di/injector.dart';
 import '../../auth/data/auth_repository.dart';
+import '../../auth/presentation/user_menu.dart';
 import '../../printing/data/receipt_printer.dart';
+import '../data/settings_repository.dart';
 import 'staff_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -18,9 +21,13 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   ConfigStore get _config => sl<ConfigStore>();
+  SettingsRepository get _settings => sl<SettingsRepository>();
 
-  // Only managers may edit company details (they appear on receipts).
+  // Company details (shown on receipts) are edited by admins only. Managers and
+  // admins can both open the Team (user management) area.
+  bool get _isAdmin => sl<AuthRepository>().cachedUser?.isAdmin ?? false;
   bool get _isManager => sl<AuthRepository>().cachedUser?.isManager ?? false;
+  bool get _canManageUsers => _isAdmin || _isManager;
 
   final _name = TextEditingController();
   final _gstin = TextEditingController();
@@ -51,12 +58,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _host.text = (printer['host'] ?? '') as String;
     _port.text = ((printer['port'] ?? 9100)).toString();
     _width = (printer['width'] as num?)?.toInt() ?? 48;
+
+    // Refresh company details from the backend so staff (and other devices)
+    // always see the manager's latest saved profile.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _pullCompany());
+  }
+
+  Future<void> _pullCompany() async {
+    final company = await _settings.pullCompany();
+    if (company == null || !mounted) return;
+    setState(() {
+      _name.text = (company['name'] ?? '') as String;
+      _gstin.text = (company['gstin'] ?? '') as String;
+      _address.text = (company['address'] ?? '') as String;
+      _phone.text = (company['phone'] ?? '') as String;
+      _email.text = (company['email'] ?? '') as String;
+    });
   }
 
   Future<void> _save() async {
-    // Staff can adjust printer setup but not company details.
-    if (_isManager) {
-      await _config.write('company', {
+    // Company details are shared: the admin pushes them to the backend so every
+    // device/user receives them. Everyone else can still adjust printer setup.
+    bool companyOffline = false;
+    if (_isAdmin) {
+      final synced = await _settings.saveCompany({
         'name': _name.text.trim(),
         'gstin': _gstin.text.trim(),
         'address': _address.text.trim(),
@@ -64,7 +89,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         'email': _email.text.trim(),
         'currency': 'INR',
       });
+      companyOffline = !synced;
     }
+    // Printer setup stays device-local.
     await _config.write('printer', {
       'kind': _printerKind.name,
       'host': _host.text.trim(),
@@ -72,7 +99,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       'width': _width,
     });
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Settings saved')));
+      final msg = companyOffline
+          ? 'Saved on this device, but could not reach the server — reopen and Save when online to share with staff'
+          : 'Settings saved';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     }
   }
 
@@ -94,25 +124,46 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(8),
             child: FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save), label: const Text('Save')),
           ),
+          // Account + sign-out — the only screen an admin can reach, so it must
+          // carry logout (mobile has no sidebar).
+          const Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: Center(child: UserMenu()),
+          ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          _section(context, 'Appearance'),
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: sl<ThemeController>(),
+            builder: (context, mode, _) => SegmentedButton<ThemeMode>(
+              segments: const [
+                ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+              ],
+              selected: {mode},
+              showSelectedIcon: false,
+              onSelectionChanged: (s) => sl<ThemeController>().set(s.first),
+            ),
+          ),
+          const SizedBox(height: 24),
           _section(context, 'Company'),
-          if (!_isManager)
+          if (!_isAdmin)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                'Only a manager can edit company details.',
+                'Only an admin can edit company details.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          _field(_name, 'Company name', enabled: _isManager),
-          _field(_gstin, 'GSTIN', enabled: _isManager),
-          _field(_address, 'Address', enabled: _isManager),
-          _field(_phone, 'Phone', enabled: _isManager),
-          _field(_email, 'Email', enabled: _isManager),
+          _field(_name, 'Company name', enabled: _isAdmin),
+          _field(_gstin, 'GSTIN', enabled: _isAdmin),
+          _field(_address, 'Address', enabled: _isAdmin),
+          _field(_phone, 'Phone', enabled: _isAdmin),
+          _field(_email, 'Email', enabled: _isAdmin),
           const SizedBox(height: 24),
           _section(context, 'Receipt printer'),
           DropdownButtonFormField<PrinterKind>(
@@ -138,14 +189,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ],
             onChanged: (v) => setState(() => _width = v ?? 48),
           ),
-          if (_isManager) ...[
+          if (_canManageUsers) ...[
             const SizedBox(height: 24),
             _section(context, 'Team'),
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.group),
-              title: const Text('Staff & members'),
-              subtitle: const Text('Add, edit, delete, or reset passwords'),
+              title: Text(_isAdmin ? 'Users & members' : 'Staff & members'),
+              subtitle: Text(_isAdmin
+                  ? 'Manage staff and manager accounts'
+                  : 'Add, edit, delete, or reset staff passwords'),
               trailing: const Icon(Icons.chevron_right),
               onTap: () => Navigator.of(context).push(
                 MaterialPageRoute(builder: (_) => const StaffScreen()),

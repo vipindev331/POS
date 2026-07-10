@@ -1,6 +1,11 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../core/di/injector.dart';
+import '../../settings/data/settings_repository.dart';
 import 'auth_cubit.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,13 +29,19 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    await context.read<AuthCubit>().login(_username.text.trim(), _password.text);
+    final ok = await context.read<AuthCubit>().login(_username.text.trim(), _password.text);
     // Navigation is handled by the router's auth redirect.
+    if (ok) {
+      // Fetch the shared company profile so this user (incl. staff) sees it.
+      unawaited(sl<SettingsRepository>().pullCompany());
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isMobile = defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS;
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -58,7 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
                       const SizedBox(height: 24),
                       TextFormField(
                         controller: _username,
-                        autofocus: true,
+                        // Avoid auto-popping the keyboard on phones.
+                        autofocus: !isMobile,
                         textInputAction: TextInputAction.next,
                         decoration: const InputDecoration(labelText: 'Username', prefixIcon: Icon(Icons.person_outline)),
                         validator: (v) => (v == null || v.trim().isEmpty) ? 'Enter username' : null,

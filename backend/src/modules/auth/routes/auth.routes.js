@@ -21,12 +21,13 @@ router.post('/refresh', validate(refreshSchema), AuthController.refresh);
 router.post('/logout', validate(refreshSchema), AuthController.logout);
 router.get('/me', authenticate, AuthController.me);
 
-// Manager-only: list + create + edit + delete + reset-password for accounts.
-const managerOnly = [authenticate, requireRole('manager')];
-router.get('/users', ...managerOnly, AuthController.listUsers);
-router.post('/users', ...managerOnly, validate(createUserSchema), AuthController.createUser);
-router.patch('/users/:id', ...managerOnly, validate(updateUserSchema), AuthController.updateUser);
-router.post('/users/:id/reset-password', ...managerOnly, validate(resetPasswordSchema), AuthController.resetPassword);
-router.delete('/users/:id', ...managerOnly, AuthController.deleteUser);
+// Account management: admins manage everyone, managers manage staff only.
+// The service enforces that per-role scope; the route just requires one of them.
+const userAdmin = [authenticate, requireRole('admin', 'manager')];
+router.get('/users', ...userAdmin, AuthController.listUsers);
+router.post('/users', ...userAdmin, validate(createUserSchema), AuthController.createUser);
+router.patch('/users/:id', ...userAdmin, validate(updateUserSchema), AuthController.updateUser);
+router.post('/users/:id/reset-password', ...userAdmin, validate(resetPasswordSchema), AuthController.resetPassword);
+router.delete('/users/:id', ...userAdmin, AuthController.deleteUser);
 
 export default router;

@@ -5,14 +5,25 @@
 import 'dart:async';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 
 import 'token_store.dart';
 
-/// Backend base URL. Override per build with --dart-define=API_BASE_URL=...
-const String kApiBaseUrl = String.fromEnvironment(
-  'API_BASE_URL',
-  defaultValue: 'http://localhost:4000/api/v1',
-);
+/// Explicit override, e.g. --dart-define=API_BASE_URL=http://192.168.1.20:4000/api/v1
+const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
+
+/// Backend base URL.
+///  - A --dart-define override always wins (use this for a physical device:
+///    pass your dev machine's LAN IP).
+///  - Otherwise defaults are host-aware: the Android emulator reaches the host
+///    machine's localhost via the special alias 10.0.2.2, not "localhost".
+String get kApiBaseUrl {
+  if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+    return 'http://10.112.9.248:4000/api/v1';
+  }
+  return 'http://localhost:4000/api/v1';
+}
 
 class DioClient {
   final TokenStore _tokens;

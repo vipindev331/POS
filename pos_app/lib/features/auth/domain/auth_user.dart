@@ -23,7 +23,11 @@ class AuthUser extends Equatable {
 
   bool get isManager => role == 'manager';
 
+  /// Restricted back-office role: manages users + company details only.
+  bool get isAdmin => role == 'admin';
+
   /// Managers can do everything; staff only what their permissions grant.
+  /// (Admin is a restricted role — it does not get blanket store permissions.)
   bool can(String permission) => isManager || permissions.contains(permission);
 
   factory AuthUser.fromJson(Map<String, dynamic> j) => AuthUser(

@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 
 import 'app/app.dart';
 import 'core/di/injector.dart';
+import 'features/auth/data/auth_repository.dart';
 import 'features/auth/presentation/auth_cubit.dart';
+import 'features/settings/data/settings_repository.dart';
 import 'features/sync/data/sync_engine.dart';
 
 Future<void> main() async {
@@ -27,7 +29,13 @@ Future<void> main() async {
 
     await registerCore();
     // Resolve the session in the background; the router shows a splash until then.
-    unawaited(sl<AuthCubit>().bootstrap());
+    // Once authenticated, pull the shared company profile so every device
+    // (including staff) shows it on Settings and receipts.
+    unawaited(sl<AuthCubit>().bootstrap().then((_) {
+      if (sl<AuthRepository>().hasSession) {
+        unawaited(sl<SettingsRepository>().pullCompany());
+      }
+    }));
     // Kick off background sync (push outbox + pull deltas). Never blocks the UI.
     sl<SyncEngine>().start();
     runApp(const PosApp());

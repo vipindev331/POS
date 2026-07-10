@@ -129,15 +129,27 @@ class SyncEngine {
         }
         await _db.syncDao.remove(op.seq);
       } else {
-        final attempts = op.attempts + 1;
-        final backoff = min(_maxBackoffMs, (1000 * pow(2, attempts)).toInt());
-        final jitter = Random().nextInt(500);
-        await _db.syncDao.reschedule(
-          op.seq,
-          attempts: attempts,
-          nextAttemptAt: now + backoff + jitter,
-          error: result?['error']?['message']?.toString() ?? 'push failed',
-        );
+        final err = result?['error'] as Map?;
+        final message = err?['message']?.toString() ?? 'push failed';
+        final statusCode = (err?['statusCode'] as num?)?.toInt() ?? 0;
+        // Validation/conflict errors (e.g. a 409 duplicate customer) will never
+        // succeed on retry — drop the op so it doesn't loop forever, and surface
+        // the reason. Everything else (network, 5xx, rate-limit) is retried.
+        const nonRetryable = {400, 404, 409, 422};
+        if (nonRetryable.contains(statusCode)) {
+          await _db.syncDao.remove(op.seq);
+          status.set(status.value.copyWith(lastError: message));
+        } else {
+          final attempts = op.attempts + 1;
+          final backoff = min(_maxBackoffMs, (1000 * pow(2, attempts)).toInt());
+          final jitter = Random().nextInt(500);
+          await _db.syncDao.reschedule(
+            op.seq,
+            attempts: attempts,
+            nextAttemptAt: now + backoff + jitter,
+            error: message,
+          );
+        }
       }
     }
   }
@@ -208,6 +220,9 @@ class SyncEngine {
         balance: Value(_i(r['balance'])),
         gstin: Value(r['gstin'] as String?),
         stateCode: Value(r['state_code'] as String?),
+        createdBy: Value(r['created_by'] as String?),
+        updatedBy: Value(r['updated_by'] as String?),
+        createdAt: Value((r['created_at'] as num?)?.toInt()),
         updatedAt: Value(_i(r['updated_at'])),
         deletedAt: Value((r['deleted_at'] as num?)?.toInt()),
       );

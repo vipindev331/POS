@@ -109,6 +109,8 @@ CREATE TABLE IF NOT EXISTS customers (
   balance        INTEGER NOT NULL DEFAULT 0,         -- paise, +ve = owes us
   gstin          TEXT,
   state_code     TEXT,                               -- for intra/inter-state GST
+  created_by     TEXT,                               -- username who created the record
+  updated_by     TEXT,                               -- username who last edited it
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
   deleted_at     INTEGER

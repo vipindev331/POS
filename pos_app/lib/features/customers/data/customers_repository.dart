@@ -17,7 +17,33 @@ class CustomersRepository {
   Future<List<Customer>> all() => _db.partiesDao.allCustomers();
   Future<List<Customer>> search(String term) => _db.partiesDao.searchCustomers(term);
 
+  /// Reactive stream of all customers — updates live on local edits and on
+  /// changes pulled by the sync engine.
+  Stream<List<Customer>> watch() => _db.partiesDao.watchCustomers();
+
+  /// Returns a human-readable reason if [phone] or [email] already belongs to
+  /// another customer (excluding [exceptId] so editing doesn't self-collide),
+  /// or null when the values are free to use. Checked against the local cache
+  /// for instant feedback; the server enforces the same rule authoritatively.
+  Future<String?> duplicateReason({String? phone, String? email, String? exceptId}) async {
+    if (phone != null && phone.isNotEmpty) {
+      final match = await _db.partiesDao.customerByPhone(phone);
+      if (match != null && match.id != exceptId) {
+        return 'Phone $phone is already used by "${match.name}"';
+      }
+    }
+    if (email != null && email.isNotEmpty) {
+      final match = await _db.partiesDao.customerByEmail(email);
+      if (match != null && match.id != exceptId) {
+        return 'Email $email is already used by "${match.name}"';
+      }
+    }
+    return null;
+  }
+
   /// Add a customer locally and queue it for sync. Returns the new local id.
+  /// [by] is the current user's username, recorded as the creator (the server
+  /// re-stamps this authoritatively from the auth token on sync).
   Future<String> addCustomer({
     required String name,
     String? phone,
@@ -26,6 +52,7 @@ class CustomersRepository {
     int creditLimit = 0,
     String? gstin,
     String? stateCode,
+    String? by,
   }) async {
     final id = _uuid.v4();
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -39,6 +66,9 @@ class CustomersRepository {
       creditLimit: Value(creditLimit),
       gstin: Value(gstin),
       stateCode: Value(stateCode),
+      createdBy: Value(by),
+      updatedBy: Value(by),
+      createdAt: Value(now),
       updatedAt: Value(now),
       dirty: const Value(true),
     ));
@@ -52,6 +82,7 @@ class CustomersRepository {
       creditLimit: creditLimit,
       gstin: gstin,
       stateCode: stateCode,
+      by: by,
       now: now,
     );
     return id;
@@ -68,6 +99,7 @@ class CustomersRepository {
     int creditLimit = 0,
     String? gstin,
     String? stateCode,
+    String? by,
   }) async {
     final now = DateTime.now().millisecondsSinceEpoch;
 
@@ -81,6 +113,7 @@ class CustomersRepository {
         creditLimit: Value(creditLimit),
         gstin: Value(gstin),
         stateCode: Value(stateCode),
+        updatedBy: Value(by),
         updatedAt: Value(now),
         dirty: const Value(true),
       ),
@@ -95,6 +128,7 @@ class CustomersRepository {
       creditLimit: creditLimit,
       gstin: gstin,
       stateCode: stateCode,
+      by: by,
       now: now,
     );
   }
@@ -123,6 +157,7 @@ class CustomersRepository {
     required int creditLimit,
     String? gstin,
     String? stateCode,
+    String? by,
     required int now,
   }) {
     return _db.syncDao.enqueue(OutboxOpsCompanion.insert(
@@ -139,6 +174,8 @@ class CustomersRepository {
         'creditLimit': creditLimit,
         'gstin': gstin,
         'stateCode': stateCode,
+        // Fallback audit hint; the server prefers the authenticated user.
+        'updatedBy': by,
       }),
       createdAt: now,
       nextAttemptAt: Value(now),

@@ -13,8 +13,26 @@ class PartiesDao extends DatabaseAccessor<AppDatabase> with _$PartiesDaoMixin {
       (select(customers)..where((c) => c.deletedAt.isNull())..orderBy([(c) => OrderingTerm(expression: c.name)]))
           .get();
 
+  /// Reactive customer list — emits a fresh list whenever any customer row
+  /// changes locally (a direct edit here, or a row written by the sync engine
+  /// after pulling another device's change). Powers the live Customers screen.
+  Stream<List<Customer>> watchCustomers() =>
+      (select(customers)..where((c) => c.deletedAt.isNull())..orderBy([(c) => OrderingTerm(expression: c.name)]))
+          .watch();
+
   Future<Customer?> customerById(String id) =>
       (select(customers)..where((c) => c.id.equals(id))).getSingleOrNull();
+
+  /// Uniqueness lookups for duplicate-prevention (excludes soft-deleted rows).
+  Future<Customer?> customerByPhone(String phone) => (select(customers)
+        ..where((c) => c.deletedAt.isNull() & c.phone.equals(phone))
+        ..limit(1))
+      .getSingleOrNull();
+
+  Future<Customer?> customerByEmail(String email) => (select(customers)
+        ..where((c) => c.deletedAt.isNull() & c.email.lower().equals(email.toLowerCase()))
+        ..limit(1))
+      .getSingleOrNull();
 
   Future<List<Customer>> searchCustomers(String term, {int limit = 25}) {
     final like = '%$term%';

@@ -44,6 +44,12 @@ class Customers extends Table with _Syncable {
   IntColumn get balance => integer().withDefault(const Constant(0))();
   TextColumn get gstin => text().nullable()();
   TextColumn get stateCode => text().nullable()();
+  // Audit trail: usernames of who created / last edited the record, and when
+  // it was first created (epoch-ms). `updatedAt` (from _Syncable) is the edit
+  // timestamp. All nullable for rows that predate the audit columns.
+  TextColumn get createdBy => text().nullable()();
+  TextColumn get updatedBy => text().nullable()();
+  IntColumn get createdAt => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};

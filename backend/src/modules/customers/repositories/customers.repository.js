@@ -1,7 +1,7 @@
 import { getDb } from '../../../db/index.js';
 
 const COLS = `id, name, phone, email, group_name, loyalty_points, credit_limit, balance,
-  gstin, state_code, created_at, updated_at, deleted_at`;
+  gstin, state_code, created_by, updated_by, created_at, updated_at, deleted_at`;
 
 export const CustomersRepository = {
   list({ limit = 100, offset = 0 } = {}) {
@@ -11,6 +11,18 @@ export const CustomersRepository = {
   },
   findById(id) {
     return getDb().prepare(`SELECT ${COLS} FROM customers WHERE id = ? AND deleted_at IS NULL`).get(id);
+  },
+  // Uniqueness lookups (used to reject duplicate phone/email). Case-insensitive
+  // for email; excludes soft-deleted rows.
+  findByPhone(phone) {
+    return getDb()
+      .prepare(`SELECT ${COLS} FROM customers WHERE phone = ? AND deleted_at IS NULL`)
+      .get(phone);
+  },
+  findByEmail(email) {
+    return getDb()
+      .prepare(`SELECT ${COLS} FROM customers WHERE lower(email) = lower(?) AND deleted_at IS NULL`)
+      .get(email);
   },
   search(term, limit = 25) {
     const like = `%${term}%`;
@@ -26,7 +38,7 @@ export const CustomersRepository = {
       .prepare(
         `INSERT INTO customers (${COLS})
          VALUES (@id,@name,@phone,@email,@group_name,@loyalty_points,@credit_limit,@balance,
-                 @gstin,@state_code,@created_at,@updated_at,@deleted_at)`,
+                 @gstin,@state_code,@created_by,@updated_by,@created_at,@updated_at,@deleted_at)`,
       )
       .run(c);
     return this.findById(c.id);
@@ -35,7 +47,8 @@ export const CustomersRepository = {
     getDb()
       .prepare(
         `UPDATE customers SET name=@name, phone=@phone, email=@email, group_name=@group_name,
-           credit_limit=@credit_limit, gstin=@gstin, state_code=@state_code, updated_at=@updated_at
+           credit_limit=@credit_limit, gstin=@gstin, state_code=@state_code,
+           updated_by=@updated_by, updated_at=@updated_at
          WHERE id=@id AND deleted_at IS NULL`,
       )
       .run({ ...c, id });

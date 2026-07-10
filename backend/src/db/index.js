@@ -16,7 +16,27 @@ export function getDb() {
   db.pragma('foreign_keys = ON');
   db.pragma('synchronous = NORMAL');
   db.pragma('busy_timeout = 5000');
+  migrate(db);
   return db;
+}
+
+// Lightweight, idempotent migrations for databases created before a column
+// existed. `CREATE TABLE IF NOT EXISTS` never adds columns to an existing table,
+// so additive changes are applied here. Duplicate-column errors are ignored.
+function migrate(database) {
+  const addColumn = (table, column, type) => {
+    try {
+      database.prepare(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`).run();
+    } catch (err) {
+      const msg = String(err.message);
+      // Fresh DB (table not created yet — schema.sql already has the column) or
+      // already-migrated DB: both are safe to ignore.
+      if (!msg.includes('duplicate column name') && !msg.includes('no such table')) throw err;
+    }
+  };
+  // Customer audit trail: who created / last edited each record.
+  addColumn('customers', 'created_by', 'TEXT');
+  addColumn('customers', 'updated_by', 'TEXT');
 }
 
 export function closeDb() {

@@ -31,7 +31,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? _open());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) => m.createAll(),
+        onUpgrade: (m, from, to) async {
+          // v2: customer audit columns (who created / last edited, created_at).
+          if (from < 2) {
+            await m.addColumn(customers, customers.createdBy);
+            await m.addColumn(customers, customers.updatedBy);
+            await m.addColumn(customers, customers.createdAt);
+          }
+        },
+      );
 
   static QueryExecutor _open() => driftDatabase(
     name: 'pos_db',

@@ -71,8 +71,8 @@ function applyOp(op, user) {
       return ProductsService.remove(op.payload.id);
     case 'customer:upsert':
       return op.payload.id && CustomersService_exists(op.payload.id)
-        ? CustomersService.update(op.payload.id, op.payload)
-        : CustomersService.create(op.payload);
+        ? CustomersService.update(op.payload.id, op.payload, user)
+        : CustomersService.create(op.payload, user);
     case 'customer:delete':
       return CustomersService.remove(op.payload.id);
     default:

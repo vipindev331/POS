@@ -37,7 +37,9 @@ Future<void> main() async {
       }
     }));
     // Kick off background sync (push outbox + pull deltas). Never blocks the UI.
-    sl<SyncEngine>().start();
+    // A short interval keeps devices near-real-time; reactive (Drift-stream)
+    // screens repaint automatically as pulled changes land locally.
+    sl<SyncEngine>().start(interval: const Duration(seconds: 10));
     runApp(const PosApp());
   }, (error, stack) {
     debugPrint('Uncaught (zone): $error');

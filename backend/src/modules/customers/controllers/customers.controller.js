@@ -21,8 +21,8 @@ export const CustomersController = {
     ok(res, CustomersService.search(term));
   }),
   get: asyncHandler((req, res) => ok(res, CustomersService.get(req.params.id))),
-  create: asyncHandler((req, res) => ok(res, CustomersService.create(req.body), 201)),
-  update: asyncHandler((req, res) => ok(res, CustomersService.update(req.params.id, req.body))),
+  create: asyncHandler((req, res) => ok(res, CustomersService.create(req.body, req.user), 201)),
+  update: asyncHandler((req, res) => ok(res, CustomersService.update(req.params.id, req.body, req.user))),
   remove: asyncHandler((req, res) => {
     CustomersService.remove(req.params.id);
     ok(res, { success: true });

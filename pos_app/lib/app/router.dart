@@ -69,8 +69,22 @@ StatefulShellBranch _branch(String path, Widget child) => StatefulShellBranch(
 class _Splash extends StatelessWidget {
   const _Splash();
   @override
-  Widget build(BuildContext context) =>
-      const Scaffold(body: Center(child: CircularProgressIndicator()));
+  Widget build(BuildContext context) => const Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Image(image: AssetImage('assets/logo.png'), height: 140),
+              SizedBox(height: 24),
+              SizedBox(
+                width: 26,
+                height: 26,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 /// Bridges a Cubit/Bloc stream to a Listenable so GoRouter re-runs redirects.

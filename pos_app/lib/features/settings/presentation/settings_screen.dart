@@ -23,11 +23,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ConfigStore get _config => sl<ConfigStore>();
   SettingsRepository get _settings => sl<SettingsRepository>();
 
-  // Company details (shown on receipts) are edited by admins only. Managers and
-  // admins can both open the Team (user management) area.
+  // Company details (shown on receipts) are edited by admins or managers.
+  // Both roles can also open the Team (user management) area.
   bool get _isAdmin => sl<AuthRepository>().cachedUser?.isAdmin ?? false;
   bool get _isManager => sl<AuthRepository>().cachedUser?.isManager ?? false;
   bool get _canManageUsers => _isAdmin || _isManager;
+  bool get _canEditCompany => _isAdmin || _isManager;
 
   final _name = TextEditingController();
   final _gstin = TextEditingController();
@@ -80,7 +81,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Company details are shared: the admin pushes them to the backend so every
     // device/user receives them. Everyone else can still adjust printer setup.
     bool companyOffline = false;
-    if (_isAdmin) {
+    if (_canEditCompany) {
       final synced = await _settings.saveCompany({
         'name': _name.text.trim(),
         'gstin': _gstin.text.trim(),
@@ -151,19 +152,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 24),
           _section(context, 'Company'),
-          if (!_isAdmin)
+          if (!_canEditCompany)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
-                'Only an admin can edit company details.',
+                'Only an admin or manager can edit company details.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-          _field(_name, 'Company name', enabled: _isAdmin),
-          _field(_gstin, 'GSTIN', enabled: _isAdmin),
-          _field(_address, 'Address', enabled: _isAdmin),
-          _field(_phone, 'Phone', enabled: _isAdmin),
-          _field(_email, 'Email', enabled: _isAdmin),
+          _field(_name, 'Company name', enabled: _canEditCompany),
+          _field(_gstin, 'GSTIN', enabled: _canEditCompany),
+          _field(_address, 'Address', enabled: _canEditCompany),
+          _field(_phone, 'Phone', enabled: _canEditCompany),
+          _field(_email, 'Email', enabled: _canEditCompany),
           const SizedBox(height: 24),
           _section(context, 'Receipt printer'),
           DropdownButtonFormField<PrinterKind>(

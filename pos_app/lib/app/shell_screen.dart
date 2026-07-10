@@ -2,7 +2,9 @@
 // "Management Suite" sidebar — logo header, labelled destinations with a blue
 // active pill, and account/support pinned to the bottom. Narrow screens fall
 // back to a BottomNavigationBar. Hosts every feature section.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -47,40 +49,68 @@ class ShellScreen extends StatelessWidget {
     final selectedIndex = sel < 0 ? 0 : sel;
 
     final wide = MediaQuery.sizeOf(context).width >= 720;
-    if (wide) {
-      return Scaffold(
-        body: Row(
-          children: [
-            _Sidebar(
-              currentBranch: navigationShell.currentIndex,
-              onSelect: _go,
-              destinations: visible,
-            ),
-            const VerticalDivider(width: 1),
-            Expanded(child: navigationShell),
-          ],
-        ),
-      );
-    }
-    return Scaffold(
-      body: navigationShell,
-      // NavigationBar requires 2+ destinations; a single-section role (e.g. the
-      // admin, who only has Settings) shows no bottom bar.
-      bottomNavigationBar: visible.length < 2
-          ? null
-          : NavigationBar(
-              selectedIndex: selectedIndex,
-              onDestinationSelected: (i) => _go(visible[i].branch),
-              destinations: [
-                for (final e in visible)
-                  NavigationDestination(
-                    icon: Icon(e.dest.icon),
-                    selectedIcon: Icon(e.dest.selectedIcon),
-                    label: e.dest.label,
-                  ),
+    final Widget scaffold = wide
+        ? Scaffold(
+            body: Row(
+              children: [
+                _Sidebar(
+                  currentBranch: navigationShell.currentIndex,
+                  onSelect: _go,
+                  destinations: visible,
+                ),
+                const VerticalDivider(width: 1),
+                Expanded(child: navigationShell),
               ],
             ),
+          )
+        : Scaffold(
+            body: navigationShell,
+            // NavigationBar requires 2+ destinations; a single-section role
+            // (e.g. the admin, who only has Settings) shows no bottom bar.
+            bottomNavigationBar: visible.length < 2
+                ? null
+                : NavigationBar(
+                    selectedIndex: selectedIndex,
+                    onDestinationSelected: (i) => _go(visible[i].branch),
+                    destinations: [
+                      for (final e in visible)
+                        NavigationDestination(
+                          icon: Icon(e.dest.icon),
+                          selectedIcon: Icon(e.dest.selectedIcon),
+                          label: e.dest.label,
+                        ),
+                    ],
+                  ),
+          );
+
+    // On Android, the hardware back button at a branch root would exit the app.
+    // Intercept it to confirm first. (Pushed pages within a branch still pop
+    // normally — this only fires once the branch has nothing left to pop.)
+    final isAndroid = defaultTargetPlatform == TargetPlatform.android;
+    return PopScope(
+      canPop: !isAndroid,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || !isAndroid) return;
+        final shouldExit = await _confirmExit(context);
+        if (shouldExit) await SystemNavigator.pop();
+      },
+      child: scaffold,
     );
+  }
+
+  Future<bool> _confirmExit(BuildContext context) async {
+    final exit = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Exit app?'),
+        content: const Text('Do you want to close the app?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Exit')),
+        ],
+      ),
+    );
+    return exit ?? false;
   }
 }
 
@@ -134,20 +164,15 @@ class _LogoHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
       child: Row(
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppTheme.accent,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.storefront, color: Color(0xFF04211C), size: 24),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.asset('assets/logo.png', width: 42, height: 42, fit: BoxFit.cover),
           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Retail POS',
+              Text('NxtCust POS',
                   style: TextStyle(
                     color: AppTheme.accent,
                     fontSize: 18,
@@ -218,7 +243,7 @@ class _SupportTile extends StatelessWidget {
       dense: true,
       onTap: () => showAboutDialog(
         context: context,
-        applicationName: 'Retail POS',
+        applicationName: 'NxtCust POS',
         applicationVersion: 'Management Suite',
         children: const [Text('For help, contact your administrator.')],
       ),

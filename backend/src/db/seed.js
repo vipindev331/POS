@@ -25,8 +25,8 @@ export async function seed() {
   };
 
   await upsertUser('admin', 'admin123', 'admin', 'Administrator');
-  await upsertUser('manager', 'manager123', 'manager', 'Store Manager');
-  await upsertUser('staff', 'staff123', 'staff', 'Cashier');
+  // await upsertUser('manager', 'manager123', 'manager', 'Store Manager');
+  // await upsertUser('staff', 'staff123', 'staff', 'Cashier');
 
   // Reference data (insert-if-absent by name).
   const ensure = (table, name, extra = {}) => {

@@ -59,5 +59,18 @@ dev_dependencies:
   freezed: ^2.5.7
   json_serializable: ^6.9.0
 
+  # Generates Android/iOS launcher icons from assets/logo.png
+  flutter_launcher_icons: ^0.14.1
+
+# App launcher icon (run: dart run flutter_launcher_icons)
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "assets/logo.png"
+  remove_alpha_ios: true
+  background_color_ios: "#5A5F5E"
+
 flutter:
   uses-material-design: true
+  assets:
+    - assets/logo.png

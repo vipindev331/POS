@@ -4,6 +4,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/di/injector.dart';
+import '../../../core/widgets/widgets.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/domain/auth_user.dart';
 
@@ -94,6 +95,62 @@ class _StaffScreenState extends State<StaffScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Color _roleColor(BuildContext context, String role) {
+    switch (role) {
+      case 'admin':
+        return const Color(0xFF8B5CF6); // violet
+      case 'manager':
+        return Theme.of(context).colorScheme.secondary; // brand blue
+      default:
+        return Theme.of(context).colorScheme.primary; // teal for staff
+    }
+  }
+
+  Widget _rowMenu(AuthUser u, bool isSelf) => PopupMenuButton<String>(
+        tooltip: 'Actions',
+        onSelected: (v) {
+          switch (v) {
+            case 'edit':
+              _editStaff(u);
+            case 'reset':
+              _resetPassword(u);
+            case 'delete':
+              _deleteStaff(u);
+          }
+        },
+        itemBuilder: (_) => [
+          const PopupMenuItem(
+            value: 'edit',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.edit_outlined),
+              title: Text('Edit'),
+            ),
+          ),
+          const PopupMenuItem(
+            value: 'reset',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.lock_reset),
+              title: Text('Reset password'),
+            ),
+          ),
+          // Cannot delete your own account.
+          if (!isSelf)
+            const PopupMenuItem(
+              value: 'delete',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.delete_outline),
+                title: Text('Delete'),
+              ),
+            ),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -119,65 +176,44 @@ class _StaffScreenState extends State<StaffScreen> {
           }
           final users = snap.data ?? const [];
           if (users.isEmpty) {
-            return const Center(child: Text('No accounts yet.'));
+            return const AppEmptyState(
+              icon: Icons.badge_outlined,
+              title: 'No accounts yet',
+              message: 'Add a staff or manager account with the button below.',
+            );
           }
-          return ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: users.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final u = users[i];
-              final isSelf = u.id == _currentUserId;
-              final display = u.fullName.isNotEmpty ? u.fullName : u.username;
-              return ListTile(
-                leading: CircleAvatar(child: Text(display[0].toUpperCase())),
-                title: Text(display),
-                subtitle: Text('@${u.username} · ${u.role}'),
-                trailing: PopupMenuButton<String>(
-                  onSelected: (v) {
-                    switch (v) {
-                      case 'edit':
-                        _editStaff(u);
-                      case 'reset':
-                        _resetPassword(u);
-                      case 'delete':
-                        _deleteStaff(u);
-                    }
-                  },
-                  itemBuilder: (_) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.edit),
-                        title: Text('Edit'),
-                      ),
-                    ),
-                    const PopupMenuItem(
-                      value: 'reset',
-                      child: ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: Icon(Icons.lock_reset),
-                        title: Text('Reset password'),
-                      ),
-                    ),
-                    // Cannot delete your own account.
-                    if (!isSelf)
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: ListTile(
-                          dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          leading: Icon(Icons.delete_outline),
-                          title: Text('Delete'),
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+              child: ListView.separated(
+                padding: const EdgeInsets.fromLTRB(
+                    AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 96),
+                itemCount: users.length,
+                separatorBuilder: (_, _) => const Gap(AppSpacing.sm),
+                itemBuilder: (context, i) {
+                  final u = users[i];
+                  final isSelf = u.id == _currentUserId;
+                  final display = u.fullName.isNotEmpty ? u.fullName : u.username;
+                  return AppListCard(
+                    onTap: () => _editStaff(u),
+                    leading: AppAvatar(label: display, color: _roleColor(context, u.role)),
+                    title: display,
+                    subtitle: '@${u.username}',
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        StatusPill(
+                          label: u.role.toUpperCase(),
+                          color: _roleColor(context, u.role),
                         ),
-                      ),
-                  ],
-                ),
-              );
-            },
+                        const Gap(AppSpacing.xs),
+                        _rowMenu(u, isSelf),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
           );
         },
       ),
@@ -192,20 +228,13 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.cloud_off, size: 40),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: Text(message, textAlign: TextAlign.center),
-          ),
-          const SizedBox(height: 12),
-          FilledButton(onPressed: onRetry, child: const Text('Retry')),
-        ],
-      ),
+    return AppEmptyState(
+      icon: Icons.cloud_off,
+      title: 'Could not load accounts',
+      message: message,
+      isError: true,
+      actionLabel: 'Retry',
+      onAction: onRetry,
     );
   }
 }

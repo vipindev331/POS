@@ -9,6 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
+import '../../../core/widgets/widgets.dart';
 import '../../../data/local/database.dart';
 import '../../auth/presentation/auth_cubit.dart';
 import '../../auth/presentation/user_menu.dart';
@@ -309,13 +310,23 @@ class _BillingViewState extends State<_BillingView> {
             actions: [
               BlocBuilder<BillingCubit, BillingState>(
                 buildWhen: (a, b) => a.customerName != b.customerName,
-                builder: (_, s) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: Text(s.customerName ?? 'Walk-in'),
-                  ),
-                ),
+                builder: (_, s) {
+                  final named = s.customerName != null;
+                  return Center(
+                    child: Padding(
+                      padding: const EdgeInsets.only(right: 4),
+                      child: StatusPill(
+                        icon: named ? Icons.person : Icons.person_outline,
+                        label: (s.customerName ?? 'Walk-in').toUpperCase(),
+                        color: named
+                            ? Theme.of(context).colorScheme.secondary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  );
+                },
               ),
+              const SizedBox(width: 4),
               const SyncBadge(),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 8),
@@ -375,12 +386,11 @@ class _BarcodeBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMobile = defaultTargetPlatform == TargetPlatform.android ||
         defaultTargetPlatform == TargetPlatform.iOS;
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpacing.md),
       child: Row(
         children: [
-          const Icon(Icons.qr_code_scanner),
-          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: controller,
@@ -388,14 +398,16 @@ class _BarcodeBar extends StatelessWidget {
               // Don't auto-open the soft keyboard on phones; desktop keeps focus.
               autofocus: !isMobile,
               textInputAction: TextInputAction.done,
-              decoration: const InputDecoration(
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+              decoration: InputDecoration(
+                prefixIcon: Icon(Icons.qr_code_scanner, color: scheme.primary),
                 hintText: 'Scan or type a barcode, then Enter  (F2 to search)',
               ),
               onSubmitted: onSubmit,
             ),
           ),
           if (isMobile) ...[
-            const SizedBox(width: 8),
+            const Gap(AppSpacing.sm),
             IconButton.filledTonal(
               tooltip: 'Scan with camera',
               onPressed: onScan,
@@ -417,39 +429,29 @@ class _CartTable extends StatelessWidget {
       buildWhen: (a, b) => a.lines != b.lines,
       builder: (context, state) {
         if (state.isEmpty) {
-          return const Center(child: Text('Scan a product to start billing'));
+          return const AppEmptyState(
+            icon: Icons.shopping_cart_outlined,
+            title: 'Cart is empty',
+            message: 'Scan a barcode or press F2 to search for a product to start billing.',
+          );
         }
         final cubit = context.read<BillingCubit>();
         return ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.md),
           itemCount: state.lines.length,
-          separatorBuilder: (_, _) => const Divider(height: 1),
+          separatorBuilder: (_, _) => const Gap(AppSpacing.sm),
           itemBuilder: (context, i) {
             final line = state.lines[i];
             final lineResult = state.totals.lines[i];
-            return ListTile(
-              title: Text(line.name),
-              subtitle: Text(
-                  '${formatPaise(line.unitPrice)} × ${line.qty}  ·  GST ${line.gstRate}%'
-                  '${line.lineDiscount > 0 ? '  ·  -${formatPaise(line.lineDiscount)}' : ''}'),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                      icon: const Icon(Icons.remove_circle_outline),
-                      onPressed: () => cubit.decQty(i)),
-                  Text('${line.qty}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                  IconButton(
-                      icon: const Icon(Icons.add_circle_outline),
-                      onPressed: () => cubit.incQty(i)),
-                  SizedBox(
-                      width: 90,
-                      child: Text(formatPaise(lineResult.lineTotal),
-                          textAlign: TextAlign.right,
-                          style: const TextStyle(fontWeight: FontWeight.bold))),
-                  IconButton(
-                      icon: const Icon(Icons.close), onPressed: () => cubit.removeLine(i)),
-                ],
-              ),
+            return _CartLine(
+              name: line.name,
+              detail: '${formatPaise(line.unitPrice)} × ${line.qty}  ·  GST ${line.gstRate}%'
+                  '${line.lineDiscount > 0 ? '  ·  -${formatPaise(line.lineDiscount)}' : ''}',
+              qty: line.qty,
+              lineTotal: formatPaise(lineResult.lineTotal),
+              onDec: () => cubit.decQty(i),
+              onInc: () => cubit.incQty(i),
+              onRemove: () => cubit.removeLine(i),
             );
           },
         );
@@ -458,48 +460,183 @@ class _CartTable extends StatelessWidget {
   }
 }
 
+/// A single cart row: product name + pricing detail on the left, a compact
+/// qty stepper and line total on the right, with a remove button.
+class _CartLine extends StatelessWidget {
+  final String name;
+  final String detail;
+  final int qty;
+  final String lineTotal;
+  final VoidCallback onDec;
+  final VoidCallback onInc;
+  final VoidCallback onRemove;
+
+  const _CartLine({
+    required this.name,
+    required this.detail,
+    required this.qty,
+    required this.lineTotal,
+    required this.onDec,
+    required this.onInc,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return AppCard(
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.md, AppSpacing.sm, AppSpacing.sm, AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14.5)),
+                const SizedBox(height: 2),
+                Text(detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12)),
+              ],
+            ),
+          ),
+          const Gap(AppSpacing.sm),
+          _QtyStepper(qty: qty, onDec: onDec, onInc: onInc),
+          const Gap(AppSpacing.sm),
+          SizedBox(
+            width: 84,
+            child: Text(lineTotal,
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
+          ),
+          IconButton(
+            icon: const Icon(Icons.close, size: 18),
+            tooltip: 'Remove',
+            visualDensity: VisualDensity.compact,
+            color: scheme.onSurfaceVariant,
+            onPressed: onRemove,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Compact −/qty/+ stepper pill used in cart rows.
+class _QtyStepper extends StatelessWidget {
+  final int qty;
+  final VoidCallback onDec;
+  final VoidCallback onInc;
+  const _QtyStepper({required this.qty, required this.onDec, required this.onInc});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _stepBtn(context, Icons.remove, onDec),
+          SizedBox(
+            width: 28,
+            child: Text('$qty',
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          ),
+          _stepBtn(context, Icons.add, onInc),
+        ],
+      ),
+    );
+  }
+
+  Widget _stepBtn(BuildContext context, IconData icon, VoidCallback onTap) => InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(10),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+        ),
+      );
+}
+
 class _TotalsPanel extends StatelessWidget {
   final VoidCallback onCheckout;
   const _TotalsPanel({required this.onCheckout});
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return BlocBuilder<BillingCubit, BillingState>(
       builder: (context, state) {
         final t = state.totals;
-        return Padding(
-          padding: const EdgeInsets.all(16),
+        return Container(
+          color: scheme.surfaceContainerLow,
+          padding: const EdgeInsets.all(AppSpacing.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _row('Items', '${state.itemCount}'),
-              _row('Subtotal', formatPaise(t.subTotal)),
-              if (t.itemDiscount > 0) _row('Item discount', '-${formatPaise(t.itemDiscount)}'),
-              if (t.billDiscount > 0) _row('Bill discount', '-${formatPaise(t.billDiscount)}'),
+              _row(context, 'Items', '${state.itemCount}'),
+              _row(context, 'Subtotal', formatPaise(t.subTotal)),
+              if (t.itemDiscount > 0)
+                _row(context, 'Item discount', '-${formatPaise(t.itemDiscount)}'),
+              if (t.billDiscount > 0)
+                _row(context, 'Bill discount', '-${formatPaise(t.billDiscount)}'),
               if (state.interState)
-                _row('IGST', formatPaise(t.igst))
+                _row(context, 'IGST', formatPaise(t.igst))
               else ...[
-                _row('CGST', formatPaise(t.cgst)),
-                _row('SGST', formatPaise(t.sgst)),
+                _row(context, 'CGST', formatPaise(t.cgst)),
+                _row(context, 'SGST', formatPaise(t.sgst)),
               ],
-              if (t.roundOff != 0) _row('Round off', formatPaise(t.roundOff)),
-              const Divider(),
-              _row('TOTAL', formatPaise(t.grandTotal), big: true),
-              const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: state.isSaving ? null : onCheckout,
-                icon: const Icon(Icons.check_circle),
-                label: Text(state.isSaving ? 'Saving…' : 'Checkout  (F12)'),
+              if (t.roundOff != 0) _row(context, 'Round off', formatPaise(t.roundOff)),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                child: Divider(height: 1),
               ),
-              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('TOTAL',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.6,
+                          color: scheme.onSurfaceVariant)),
+                  Text(formatPaise(t.grandTotal),
+                      style: TextStyle(
+                          fontSize: 28, fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                ],
+              ),
+              const Gap(AppSpacing.lg),
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: state.isSaving ? null : onCheckout,
+                  icon: const Icon(Icons.check_circle),
+                  label: Text(state.isSaving ? 'Saving…' : 'Checkout  (F12)',
+                      style: const TextStyle(fontSize: 15)),
+                ),
+              ),
+              const Gap(AppSpacing.sm),
               OutlinedButton.icon(
-                onPressed: (state.isEmpty || state.isSaving)
-                    ? null
-                    : () => _cancelBill(context),
+                onPressed:
+                    (state.isEmpty || state.isSaving) ? null : () => _cancelBill(context),
                 icon: const Icon(Icons.cancel_outlined),
                 label: const Text('Cancel bill  (Esc)'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.error,
+                  foregroundColor: scheme.error,
                 ),
               ),
             ],
@@ -529,15 +666,18 @@ class _TotalsPanel extends StatelessWidget {
     if (confirm == true) cubit.clearCart();
   }
 
-  Widget _row(String label, String value, {bool big = false}) {
-    final style = big
-        ? const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)
-        : const TextStyle(fontSize: 14);
+  Widget _row(BuildContext context, String label, String value) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [Text(label, style: style), Text(value, style: style)],
+        children: [
+          Text(label, style: TextStyle(fontSize: 13.5, color: scheme.onSurfaceVariant)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 13.5, fontWeight: FontWeight.w600, color: scheme.onSurface)),
+        ],
       ),
     );
   }
@@ -549,11 +689,16 @@ class _ShortcutLegend extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = 'F2 Search · F3 Customer · F4 Discount · F5 Hold · F6 Resume · '
         'F7 Cash · F8 Card · F9 UPI · F10 Print · F12 Checkout · Esc Cancel · Ctrl+N New';
+    final scheme = Theme.of(context).colorScheme;
     return Container(
       width: double.infinity,
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: Text(items, style: Theme.of(context).textTheme.bodySmall),
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        border: Border(top: BorderSide(color: scheme.outlineVariant)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      child: Text(items,
+          style: TextStyle(fontSize: 11.5, color: scheme.onSurfaceVariant, letterSpacing: 0.2)),
     );
   }
 }

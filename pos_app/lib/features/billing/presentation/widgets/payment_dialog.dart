@@ -5,11 +5,75 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/money/tax_engine.dart';
+import '../../../../core/widgets/widgets.dart';
 import '../../domain/cart.dart';
+
+IconData _methodIcon(PayMethod m) {
+  switch (m) {
+    case PayMethod.cash:
+      return Icons.payments_outlined;
+    case PayMethod.card:
+      return Icons.credit_card;
+    case PayMethod.upi:
+      return Icons.qr_code_2;
+    case PayMethod.wallet:
+      return Icons.account_balance_wallet_outlined;
+    case PayMethod.credit:
+      return Icons.schedule_outlined;
+  }
+}
 
 class PaymentResult {
   final List<PaymentEntry> payments;
   const PaymentResult(this.payments);
+}
+
+/// A tappable payment-method selector chip (icon + label) used in the dialog.
+class _MethodChip extends StatelessWidget {
+  final PayMethod method;
+  final bool selected;
+  final VoidCallback onTap;
+  const _MethodChip({required this.method, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: selected ? scheme.primary.withValues(alpha: 0.14) : scheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? scheme.primary : scheme.outlineVariant,
+              width: selected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_methodIcon(method),
+                  size: 18,
+                  color: selected ? scheme.primary : scheme.onSurfaceVariant),
+              const SizedBox(width: 8),
+              Text(
+                method.name.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: selected ? scheme.primary : scheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class PaymentDialog extends StatefulWidget {
@@ -51,6 +115,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Dialog(
       child: Focus(
         onKeyEvent: (_, e) {
@@ -63,29 +128,59 @@ class _PaymentDialogState extends State<PaymentDialog> {
           return KeyEventResult.ignored;
         },
         child: Container(
-          width: 420,
-          padding: const EdgeInsets.all(20),
+          width: 440,
+          padding: const EdgeInsets.all(AppSpacing.xl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Payment', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 8),
-              Text('Payable: ${formatPaise(widget.payable)}',
-                  style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 16),
+              Text('Payment',
+                  style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w800,
+                      color: scheme.onSurface)),
+              const Gap(AppSpacing.lg),
+              // Payable amount, prominent.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+                decoration: BoxDecoration(
+                  color: scheme.primary.withValues(alpha: 0.10),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('PAYABLE',
+                        style: TextStyle(
+                            fontSize: 11,
+                            letterSpacing: 0.8,
+                            fontWeight: FontWeight.w700,
+                            color: scheme.onSurfaceVariant)),
+                    const SizedBox(height: 2),
+                    Text(formatPaise(widget.payable),
+                        style: TextStyle(
+                            fontSize: 30,
+                            fontWeight: FontWeight.w800,
+                            color: scheme.onSurface)),
+                  ],
+                ),
+              ),
+              const Gap(AppSpacing.lg),
               Wrap(
-                spacing: 8,
+                spacing: AppSpacing.sm,
+                runSpacing: AppSpacing.sm,
                 children: [
                   for (final m in PayMethod.values)
-                    ChoiceChip(
-                      label: Text(m.name.toUpperCase()),
+                    _MethodChip(
+                      method: m,
                       selected: _method == m,
-                      onSelected: (_) => setState(() => _method = m),
+                      onTap: () => setState(() => _method = m),
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const Gap(AppSpacing.lg),
               if (_method != PayMethod.credit)
                 TextField(
                   controller: _tendered,
@@ -96,18 +191,26 @@ class _PaymentDialogState extends State<PaymentDialog> {
                   onChanged: (_) => setState(() {}),
                 ),
               if (_method == PayMethod.cash) ...[
-                const SizedBox(height: 8),
-                Text('Change: ${formatPaise(_change < 0 ? 0 : _change)}',
-                    style: TextStyle(
-                        color: _change < 0 ? Colors.red : Colors.green,
-                        fontWeight: FontWeight.bold)),
+                const Gap(AppSpacing.md),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Change to return',
+                        style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13.5)),
+                    Text(formatPaise(_change < 0 ? 0 : _change),
+                        style: TextStyle(
+                            color: _change < 0 ? scheme.error : scheme.primary,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16)),
+                  ],
+                ),
               ],
-              const SizedBox(height: 20),
+              const Gap(AppSpacing.xl),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                  const SizedBox(width: 8),
+                  const Gap(AppSpacing.sm),
                   FilledButton.icon(
                     onPressed: _confirm,
                     icon: const Icon(Icons.check),

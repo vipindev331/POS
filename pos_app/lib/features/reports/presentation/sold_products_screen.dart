@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
+import '../../../core/widgets/widgets.dart';
 import '../data/reports_api.dart';
 import 'widgets/report_date_bar.dart';
 
@@ -76,19 +77,22 @@ class _SoldProductsScreenState extends State<SoldProductsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snap.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(24),
-                      child: Text(
-                        'Could not load sold products.\nThis report needs a connection to the server.\n\n${snap.error}',
-                        textAlign: TextAlign.center,
-                      ),
-                    ),
+                  return AppEmptyState(
+                    icon: Icons.cloud_off,
+                    title: 'Could not load sold products',
+                    message: 'This report needs a connection to the server.',
+                    isError: true,
+                    actionLabel: 'Retry',
+                    onAction: () => setState(_reload),
                   );
                 }
                 final rows = snap.data ?? const [];
                 if (rows.isEmpty) {
-                  return const Center(child: Text('No products sold in this period.'));
+                  return const AppEmptyState(
+                    icon: Icons.sell_outlined,
+                    title: 'No products sold',
+                    message: 'Nothing was sold in the selected period.',
+                  );
                 }
                 final totalQty = rows.fold<int>(0, (s, r) => s + (r['qty'] as int? ?? 0));
                 final totalRevenue =
@@ -96,35 +100,46 @@ class _SoldProductsScreenState extends State<SoldProductsScreen> {
                 return Column(
                   children: [
                     _SummaryBar(items: rows.length, qty: totalQty, revenue: totalRevenue),
-                    const Divider(height: 1),
                     Expanded(
-                      child: ListView.separated(
-                        itemCount: rows.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, i) {
-                          final r = rows[i];
-                          final qty = r['qty'] as int? ?? 0;
-                          final revenue = r['revenue'] as int? ?? 0;
-                          final bills = r['bills'] as int? ?? 0;
-                          final sku = (r['sku'] ?? '').toString();
-                          return ListTile(
-                            onTap: () => _viewDetail(r),
-                            leading: CircleAvatar(child: Text('$qty')),
-                            title: Text((r['name'] ?? '-').toString()),
-                            subtitle: Text(
-                                '${sku.isNotEmpty ? '$sku · ' : ''}$bills bill${bills == 1 ? '' : 's'}'),
-                            trailing: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                Text(formatPaise(revenue),
-                                    style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text('Qty $qty',
-                                    style: const TextStyle(fontSize: 12)),
-                              ],
-                            ),
-                          );
-                        },
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints:
+                              const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+                          child: ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(
+                                AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xl),
+                            itemCount: rows.length,
+                            separatorBuilder: (_, _) => const Gap(AppSpacing.sm),
+                            itemBuilder: (context, i) {
+                              final r = rows[i];
+                              final qty = r['qty'] as int? ?? 0;
+                              final revenue = r['revenue'] as int? ?? 0;
+                              final bills = r['bills'] as int? ?? 0;
+                              final sku = (r['sku'] ?? '').toString();
+                              return AppListCard(
+                                onTap: () => _viewDetail(r),
+                                leading: AppAvatar(label: '$qty'),
+                                title: (r['name'] ?? '-').toString(),
+                                subtitle:
+                                    '${sku.isNotEmpty ? '$sku · ' : ''}$bills bill${bills == 1 ? '' : 's'}',
+                                trailing: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                  children: [
+                                    Text(formatPaise(revenue),
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w700, fontSize: 15)),
+                                    const SizedBox(height: 4),
+                                    StatusPill(
+                                      label: 'QTY $qty',
+                                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -147,14 +162,19 @@ class _SummaryBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _stat(context, 'Products', '$items'),
-          _stat(context, 'Units sold', '$qty'),
-          _stat(context, 'Revenue', formatPaise(revenue)),
-        ],
+      padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xs),
+      child: AppCard(
+        padding: const EdgeInsets.symmetric(
+            horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _stat(context, 'Products', '$items'),
+            _stat(context, 'Units sold', '$qty'),
+            _stat(context, 'Revenue', formatPaise(revenue)),
+          ],
+        ),
       ),
     );
   }
@@ -162,10 +182,14 @@ class _SummaryBar extends StatelessWidget {
   Widget _stat(BuildContext context, String label, String value) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label,
+          Text(label.toUpperCase(),
               style: TextStyle(
-                  fontSize: 11, color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  fontSize: 10.5,
+                  letterSpacing: 0.6,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 2),
+          Text(value, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
         ],
       );
 }
@@ -236,7 +260,11 @@ class _SoldDetailDialogState extends State<_SoldDetailDialog> {
             }
             final lines = snap.data ?? const [];
             if (lines.isEmpty) {
-              return const Center(child: Text('No sales in this period.'));
+              return const AppEmptyState(
+                icon: Icons.sell_outlined,
+                title: 'No sales',
+                message: 'No sales for this product in the selected period.',
+              );
             }
             return ListView.separated(
               itemCount: lines.length,

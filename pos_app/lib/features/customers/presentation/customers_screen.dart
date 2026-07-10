@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
+import '../../../core/widgets/widgets.dart';
 import '../../../data/local/database.dart';
 import '../data/customers_repository.dart';
 
@@ -93,6 +94,34 @@ class _CustomersScreenState extends State<CustomersScreen> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  Widget _rowMenu(Customer c) => PopupMenuButton<String>(
+        tooltip: 'Actions',
+        onSelected: (v) {
+          if (v == 'edit') _editCustomer(c);
+          if (v == 'delete') _deleteCustomer(c);
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(
+            value: 'edit',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.edit_outlined),
+              title: Text('Edit'),
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.delete_outline),
+              title: Text('Delete'),
+            ),
+          ),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -105,10 +134,11 @@ class _CustomersScreenState extends State<CustomersScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+            child: AppSearchField(
               controller: _search,
-              decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search name / phone'),
+              hintText: 'Search name / phone',
               onChanged: _reload,
             ),
           ),
@@ -121,54 +151,47 @@ class _CustomersScreenState extends State<CustomersScreen> {
                 }
                 final items = snap.data ?? const [];
                 if (items.isEmpty) {
-                  return const Center(child: Text('No customers yet (they arrive via sync).'));
+                  return const AppEmptyState(
+                    icon: Icons.people_outline,
+                    title: 'No customers yet',
+                    message: 'Customers arrive through sync, or add one with the button below.',
+                  );
                 }
-                return ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final c = items[i];
-                    return ListTile(
-                      onTap: () => _editCustomer(c),
-                      leading: CircleAvatar(child: Text(c.name.isNotEmpty ? c.name[0].toUpperCase() : '?')),
-                      title: Text(c.name),
-                      subtitle: Text('${c.phone ?? ''}  ·  ${c.groupName}'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (c.balance != 0)
-                            Text('Due ${formatPaise(c.balance)}',
-                                style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
-                          PopupMenuButton<String>(
-                            onSelected: (v) {
-                              if (v == 'edit') _editCustomer(c);
-                              if (v == 'delete') _deleteCustomer(c);
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: 'edit',
-                                child: ListTile(
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.edit),
-                                  title: Text('Edit'),
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 96),
+                      itemCount: items.length,
+                      separatorBuilder: (_, _) => const Gap(AppSpacing.sm),
+                      itemBuilder: (context, i) {
+                        final c = items[i];
+                        return AppListCard(
+                          onTap: () => _editCustomer(c),
+                          leading: AppAvatar(label: c.name),
+                          title: c.name,
+                          subtitle: [
+                            if ((c.phone ?? '').isNotEmpty) c.phone,
+                            c.groupName,
+                          ].whereType<String>().join('  ·  '),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (c.balance != 0) ...[
+                                StatusPill(
+                                  label: 'DUE ${formatPaise(c.balance)}',
+                                  color: const Color(0xFFF59E0B),
                                 ),
-                              ),
-                              PopupMenuItem(
-                                value: 'delete',
-                                child: ListTile(
-                                  dense: true,
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: Icon(Icons.delete_outline),
-                                  title: Text('Delete'),
-                                ),
-                              ),
+                                const Gap(AppSpacing.xs),
+                              ],
+                              _rowMenu(c),
                             ],
                           ),
-                        ],
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 );
               },
             ),

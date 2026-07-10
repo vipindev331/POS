@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/money/tax_engine.dart';
+import '../../../../core/widgets/widgets.dart';
 import '../../../../data/local/database.dart';
 import '../../../products/data/products_repository.dart';
 
@@ -118,33 +119,55 @@ class _ProductSearchDialogState extends State<ProductSearchDialog> {
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
                     : _error != null
-                        ? Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(24),
-                              child: Text('Search failed:\n$_error', textAlign: TextAlign.center),
-                            ),
+                        ? AppEmptyState(
+                            icon: Icons.error_outline,
+                            title: 'Search failed',
+                            message: _error,
+                            isError: true,
                           )
                         : _results.isEmpty
-                        ? const Center(child: Text('No products'))
-                        : ListView.builder(
-                            itemCount: _results.length,
-                            itemBuilder: (context, i) {
-                              final p = _results[i];
-                              final selected = i == _highlight;
-                              return Container(
-                                color: selected
-                                    ? Theme.of(context).colorScheme.primaryContainer
-                                    : null,
-                                child: ListTile(
-                                  dense: true,
-                                  title: Text(p.name),
-                                  subtitle: Text('${p.barcode ?? p.sku ?? ''}  ·  stock ${p.stock}'),
-                                  trailing: Text(formatPaise(p.sellingPrice)),
-                                  onTap: () => Navigator.of(context).pop(p),
-                                ),
-                              );
-                            },
-                          ),
+                            ? const AppEmptyState(
+                                icon: Icons.search_off,
+                                title: 'No products',
+                                message: 'Try a different name, SKU or barcode.',
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(vertical: AppSpacing.xs),
+                                itemCount: _results.length,
+                                itemBuilder: (context, i) {
+                                  final p = _results[i];
+                                  final selected = i == _highlight;
+                                  final scheme = Theme.of(context).colorScheme;
+                                  return Container(
+                                    margin: const EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.sm, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? scheme.primary.withValues(alpha: 0.12)
+                                          : null,
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: selected
+                                          ? Border.all(
+                                              color: scheme.primary.withValues(alpha: 0.5))
+                                          : null,
+                                    ),
+                                    child: ListTile(
+                                      dense: true,
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(10)),
+                                      title: Text(p.name,
+                                          style:
+                                              const TextStyle(fontWeight: FontWeight.w600)),
+                                      subtitle: Text(
+                                          '${p.barcode ?? p.sku ?? '—'}  ·  stock ${p.stock}'),
+                                      trailing: Text(formatPaise(p.sellingPrice),
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700, fontSize: 14)),
+                                      onTap: () => Navigator.of(context).pop(p),
+                                    ),
+                                  );
+                                },
+                              ),
               ),
             ],
           ),

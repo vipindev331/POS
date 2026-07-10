@@ -6,6 +6,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../core/di/injector.dart';
 import '../../../core/money/tax_engine.dart';
+import '../../../core/widgets/widgets.dart';
 import '../../../data/local/database.dart';
 import '../../auth/domain/auth_user.dart';
 import '../../auth/presentation/auth_cubit.dart';
@@ -131,6 +132,34 @@ class _ProductsScreenState extends State<ProductsScreen> {
     }
   }
 
+  Widget _rowMenu(Product p) => PopupMenuButton<String>(
+        tooltip: 'Actions',
+        onSelected: (v) {
+          if (v == 'edit') _editProduct(p);
+          if (v == 'delete') _deleteProduct(p);
+        },
+        itemBuilder: (_) => const [
+          PopupMenuItem(
+            value: 'edit',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.edit_outlined),
+              title: Text('Edit'),
+            ),
+          ),
+          PopupMenuItem(
+            value: 'delete',
+            child: ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(Icons.delete_outline),
+              title: Text('Delete'),
+            ),
+          ),
+        ],
+      );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -159,10 +188,11 @@ class _ProductsScreenState extends State<ProductsScreen> {
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(12),
-            child: TextField(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.sm),
+            child: AppSearchField(
               controller: _search,
-              decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search name / SKU / barcode'),
+              hintText: 'Search name / SKU / barcode',
               onChanged: (v) => setState(() => _term = v.trim()),
             ),
           ),
@@ -183,62 +213,71 @@ class _ProductsScreenState extends State<ProductsScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (items.isEmpty) {
-                  return const Center(child: Text('No products. Tap sync to load from the server.'));
+                  return AppEmptyState(
+                    icon: Icons.inventory_2_outlined,
+                    title: _term.isEmpty ? 'No products yet' : 'No matches',
+                    message: _term.isEmpty
+                        ? 'Sync your catalog from the server to get started.'
+                        : 'No products match "$_term".',
+                    actionLabel: _term.isEmpty ? 'Sync now' : null,
+                    onAction: _term.isEmpty ? _refresh : null,
+                  );
                 }
-                return ListView.separated(
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, i) {
-                    final p = items[i];
-                    final low = p.stock <= p.reorderLevel;
-                    return ListTile(
-                      onTap: _canManage ? () => _editProduct(p) : null,
-                      title: Text(p.name),
-                      subtitle: Text('${p.barcode ?? p.sku ?? ''}  ·  GST ${p.gstRate}%'),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.end,
+                return Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: AppSpacing.contentMaxWidth),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(
+                          AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 96),
+                      itemCount: items.length,
+                      separatorBuilder: (_, _) => const Gap(AppSpacing.sm),
+                      itemBuilder: (context, i) {
+                        final p = items[i];
+                        final low = p.stock <= p.reorderLevel;
+                        final out = p.stock <= 0;
+                        return AppListCard(
+                          onTap: _canManage ? () => _editProduct(p) : null,
+                          leading: AppAvatar(
+                            icon: Icons.inventory_2_outlined,
+                            color: out
+                                ? Theme.of(context).colorScheme.error
+                                : (low ? const Color(0xFFF59E0B) : null),
+                          ),
+                          title: p.name,
+                          subtitle: '${p.barcode ?? p.sku ?? '—'}  ·  GST ${p.gstRate}%',
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(formatPaise(p.sellingPrice),
-                                  style: const TextStyle(fontWeight: FontWeight.bold)),
-                              Text('Stock ${p.stock}',
-                                  style: TextStyle(fontSize: 12, color: low ? Colors.orange : null)),
+                              Column(
+                                mainAxisSize: MainAxisSize.min,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Text(formatPaise(p.sellingPrice),
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.w700, fontSize: 15)),
+                                  const SizedBox(height: 4),
+                                  StatusPill(
+                                    label: out
+                                        ? 'OUT OF STOCK'
+                                        : (low ? 'LOW · ${p.stock}' : 'STOCK ${p.stock}'),
+                                    color: out
+                                        ? Theme.of(context).colorScheme.error
+                                        : (low
+                                            ? const Color(0xFFF59E0B)
+                                            : Theme.of(context).colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                              if (_canManage) ...[
+                                const Gap(AppSpacing.xs),
+                                _rowMenu(p),
+                              ],
                             ],
                           ),
-                          if (_canManage)
-                            PopupMenuButton<String>(
-                              onSelected: (v) {
-                                if (v == 'edit') _editProduct(p);
-                                if (v == 'delete') _deleteProduct(p);
-                              },
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: ListTile(
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(Icons.edit),
-                                    title: Text('Edit'),
-                                  ),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: ListTile(
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                    leading: Icon(Icons.delete_outline),
-                                    title: Text('Delete'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                        ],
-                      ),
-                    );
-                  },
+                        );
+                      },
+                    ),
+                  ),
                 );
               },
             ),

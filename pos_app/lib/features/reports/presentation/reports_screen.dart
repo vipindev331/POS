@@ -7,6 +7,7 @@ import '../../../app/theme.dart';
 import '../../../core/di/injector.dart';
 import '../../../core/export/csv.dart';
 import '../../../core/money/tax_engine.dart';
+import '../../../core/widgets/widgets.dart';
 import '../../auth/presentation/auth_cubit.dart';
 import '../data/reports_api.dart';
 import 'widgets/report_date_bar.dart';
@@ -82,12 +83,11 @@ class _Loader<T> extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(24),
-              child: Text('Could not load report.\nReports need a connection to the server.\n\n${snap.error}',
-                  textAlign: TextAlign.center),
-            ),
+          return const AppEmptyState(
+            icon: Icons.cloud_off,
+            title: 'Could not load report',
+            message: 'Reports need a connection to the server. Check your network and try again.',
+            isError: true,
           );
         }
         return builder(context, snap.data as T);
@@ -277,18 +277,7 @@ class _Kpi extends StatelessWidget {
                 child: Icon(icon, color: tint, size: 22),
               ),
               const Spacer(),
-              if (badge != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: tint.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    badge!,
-                    style: TextStyle(color: tint, fontSize: 10, fontWeight: FontWeight.w700, letterSpacing: 0.5),
-                  ),
-                ),
+              if (badge != null) StatusPill(label: badge!, color: tint),
             ],
           ),
           const SizedBox(height: 16),
@@ -338,30 +327,11 @@ class _Panel extends StatelessWidget {
   const _Panel({required this.title, required this.child});
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-            child: Text(title,
-                style: TextStyle(
-                    color: scheme.onSurface, fontSize: 17, fontWeight: FontWeight.w700)),
-          ),
-          const Divider(height: 1),
-          Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: child),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => SectionCard(
+        title: title,
+        childPadding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+        child: child,
+      );
 }
 
 class _BillRow extends StatelessWidget {
@@ -382,15 +352,7 @@ class _BillRow extends StatelessWidget {
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-            decoration: BoxDecoration(
-              color: AppTheme.accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text('COMPLETED',
-                style: TextStyle(color: AppTheme.accent, fontSize: 10, fontWeight: FontWeight.w700)),
-          ),
+          const StatusPill(label: 'COMPLETED', color: AppTheme.accent),
           const SizedBox(width: 14),
           Text(amount, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
         ],
@@ -556,7 +518,11 @@ class _TableView extends StatelessWidget {
         _ExportBar(onExport: () => _download(context, exportName, columns, exportRows)),
         Expanded(
           child: rows.isEmpty
-              ? const Center(child: Text('No data for this period'))
+              ? const AppEmptyState(
+                  icon: Icons.bar_chart_outlined,
+                  title: 'No data',
+                  message: 'There is nothing to show for the selected period.',
+                )
               : SingleChildScrollView(
                   scrollDirection: Axis.vertical,
                   child: SingleChildScrollView(

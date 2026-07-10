@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../app/theme_controller.dart';
 import '../../../core/config/config_store.dart';
 import '../../../core/di/injector.dart';
+import '../../../core/widgets/widgets.dart';
 import '../../auth/data/auth_repository.dart';
 import '../../auth/presentation/user_menu.dart';
 import '../../printing/data/receipt_printer.dart';
@@ -133,93 +134,113 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _section(context, 'Appearance'),
-          ValueListenableBuilder<ThemeMode>(
-            valueListenable: sl<ThemeController>(),
-            builder: (context, mode, _) => SegmentedButton<ThemeMode>(
-              segments: const [
-                ButtonSegment(value: ThemeMode.system, label: Text('System')),
-                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: ListView(
+            padding: const EdgeInsets.all(AppSpacing.lg),
+            children: [
+              SectionCard(
+                title: 'Appearance',
+                child: ValueListenableBuilder<ThemeMode>(
+                  valueListenable: sl<ThemeController>(),
+                  builder: (context, mode, _) => SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                      ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                      ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                    ],
+                    selected: {mode},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => sl<ThemeController>().set(s.first),
+                  ),
+                ),
+              ),
+              const Gap(AppSpacing.lg),
+              SectionCard(
+                title: 'Company',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!_canEditCompany)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                        child: Text(
+                          'Only an admin or manager can edit company details.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                    _field(_name, 'Company name', enabled: _canEditCompany),
+                    _field(_gstin, 'GSTIN', enabled: _canEditCompany),
+                    _field(_address, 'Address', enabled: _canEditCompany),
+                    _field(_phone, 'Phone', enabled: _canEditCompany),
+                    _field(_email, 'Email', enabled: _canEditCompany, last: true),
+                  ],
+                ),
+              ),
+              const Gap(AppSpacing.lg),
+              SectionCard(
+                title: 'Receipt printer',
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    DropdownButtonFormField<PrinterKind>(
+                      initialValue: _printerKind,
+                      decoration: const InputDecoration(labelText: 'Printer type'),
+                      items: PrinterKind.values
+                          .map((k) => DropdownMenuItem(value: k, child: Text(k.name)))
+                          .toList(),
+                      onChanged: (v) => setState(() => _printerKind = v ?? PrinterKind.network),
+                    ),
+                    const Gap(AppSpacing.md),
+                    if (_printerKind == PrinterKind.network) ...[
+                      _field(_host, 'Printer IP / host'),
+                      _field(_port, 'Port', keyboard: TextInputType.number),
+                    ],
+                    DropdownButtonFormField<int>(
+                      initialValue: _width,
+                      decoration: const InputDecoration(labelText: 'Paper width'),
+                      items: const [
+                        DropdownMenuItem(value: 48, child: Text('80mm (48 cols)')),
+                        DropdownMenuItem(value: 32, child: Text('58mm (32 cols)')),
+                      ],
+                      onChanged: (v) => setState(() => _width = v ?? 48),
+                    ),
+                  ],
+                ),
+              ),
+              if (_canManageUsers) ...[
+                const Gap(AppSpacing.lg),
+                SectionCard(
+                  title: 'Team',
+                  childPadding: EdgeInsets.zero,
+                  child: ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.lg, vertical: AppSpacing.xs),
+                    leading: const AppAvatar(icon: Icons.group_outlined),
+                    title: Text(_isAdmin ? 'Users & members' : 'Staff & members'),
+                    subtitle: Text(_isAdmin
+                        ? 'Manage staff and manager accounts'
+                        : 'Add, edit, delete, or reset staff passwords'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const StaffScreen()),
+                    ),
+                  ),
+                ),
               ],
-              selected: {mode},
-              showSelectedIcon: false,
-              onSelectionChanged: (s) => sl<ThemeController>().set(s.first),
-            ),
-          ),
-          const SizedBox(height: 24),
-          _section(context, 'Company'),
-          if (!_canEditCompany)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Text(
-                'Only an admin or manager can edit company details.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ),
-          _field(_name, 'Company name', enabled: _canEditCompany),
-          _field(_gstin, 'GSTIN', enabled: _canEditCompany),
-          _field(_address, 'Address', enabled: _canEditCompany),
-          _field(_phone, 'Phone', enabled: _canEditCompany),
-          _field(_email, 'Email', enabled: _canEditCompany),
-          const SizedBox(height: 24),
-          _section(context, 'Receipt printer'),
-          DropdownButtonFormField<PrinterKind>(
-            initialValue: _printerKind,
-            decoration: const InputDecoration(labelText: 'Printer type'),
-            items: PrinterKind.values
-                .map((k) => DropdownMenuItem(value: k, child: Text(k.name)))
-                .toList(),
-            onChanged: (v) => setState(() => _printerKind = v ?? PrinterKind.network),
-          ),
-          const SizedBox(height: 12),
-          if (_printerKind == PrinterKind.network) ...[
-            _field(_host, 'Printer IP / host'),
-            _field(_port, 'Port', keyboard: TextInputType.number),
-          ],
-          const SizedBox(height: 12),
-          DropdownButtonFormField<int>(
-            initialValue: _width,
-            decoration: const InputDecoration(labelText: 'Paper width'),
-            items: const [
-              DropdownMenuItem(value: 48, child: Text('80mm (48 cols)')),
-              DropdownMenuItem(value: 32, child: Text('58mm (32 cols)')),
+              const Gap(AppSpacing.xl),
             ],
-            onChanged: (v) => setState(() => _width = v ?? 48),
           ),
-          if (_canManageUsers) ...[
-            const SizedBox(height: 24),
-            _section(context, 'Team'),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.group),
-              title: Text(_isAdmin ? 'Users & members' : 'Staff & members'),
-              subtitle: Text(_isAdmin
-                  ? 'Manage staff and manager accounts'
-                  : 'Add, edit, delete, or reset staff passwords'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const StaffScreen()),
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
 
-  Widget _section(BuildContext context, String title) => Padding(
-        padding: const EdgeInsets.only(bottom: 8),
-        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
-      );
-
   Widget _field(TextEditingController c, String label,
-          {TextInputType? keyboard, bool enabled = true}) =>
+          {TextInputType? keyboard, bool enabled = true, bool last = false}) =>
       Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: EdgeInsets.only(bottom: last ? 0 : AppSpacing.md),
         child: TextField(
           controller: c,
           keyboardType: keyboard,

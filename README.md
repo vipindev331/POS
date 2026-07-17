@@ -4,6 +4,26 @@ Offline-first, enterprise-grade Point-of-Sale for retail (supermarkets, pharmaci
 textiles, restaurants, wholesale). One **Flutter** client across Android / iOS / Windows / macOS /
 Linux / Web, backed by a **Node.js + SQLite** sync/authority server.
 
+## Screenshots
+
+### Login
+
+| Web / Desktop | Mobile |
+|---|---|
+| <img src="docs/screenshots/login-web.png" width="480"> | <img src="docs/screenshots/login-mobile.png" width="220"> |
+
+### Dashboard
+
+| Web / Desktop | Mobile |
+|---|---|
+| <img src="docs/screenshots/dashboard-web.png" width="480"> | <img src="docs/screenshots/dashboard-mobile.jpeg" width="220"> |
+
+### Scan & billing
+
+| Barcode scan (mobile) | Product search (web) |
+|---|---|
+| <img src="docs/screenshots/scan-mobile.jpeg" width="220"> | <img src="docs/screenshots/billing-search-web.png" width="480"> |
+
 ## Repository layout
 
 ```

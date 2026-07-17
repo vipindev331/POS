@@ -8,6 +8,6 @@
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">127.0.0.1</domain>
         <!-- Physical device on the same Wi-Fi: dev machine's LAN IP -->
-        <domain includeSubdomains="true">10.112.9.248</domain>
+        <domain includeSubdomains="true">10.242.242.125</domain>
     </domain-config>
 </network-security-config>

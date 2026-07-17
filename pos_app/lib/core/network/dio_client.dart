@@ -20,7 +20,7 @@ const String _envBaseUrl = String.fromEnvironment('API_BASE_URL');
 String get kApiBaseUrl {
   if (_envBaseUrl.isNotEmpty) return _envBaseUrl;
   if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
-    return 'http://10.112.9.248:4000/api/v1';
+    return 'http://10.242.242.125:4000/api/v1';
   }
   return 'http://localhost:4000/api/v1';
 }
